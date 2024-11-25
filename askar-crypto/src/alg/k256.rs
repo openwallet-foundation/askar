@@ -85,7 +85,7 @@ impl K256KeyPair {
     pub fn sign(&self, message: &[u8]) -> Option<[u8; ES256K_SIGNATURE_LENGTH]> {
         if let Some(skey) = self.to_signing_key() {
             let sig: Signature = skey.sign(message);
-            let sigb: [u8; 64] = sig.to_bytes().try_into().unwrap();
+            let sigb: [u8; 64] = sig.to_bytes().into();
             Some(sigb)
         } else {
             None
@@ -128,6 +128,7 @@ impl KeyGen for K256KeyPair {
 
 impl KeySecretBytes for K256KeyPair {
     fn from_secret_bytes(key: &[u8]) -> Result<Self, Error> {
+        #[allow(clippy::unnecessary_fallible_conversions)]
         if let Ok(key) = key.try_into() {
             if let Ok(sk) = SecretKey::from_bytes(key) {
                 return Ok(Self::from_secret_key(sk));

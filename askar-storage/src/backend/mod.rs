@@ -23,17 +23,13 @@ pub mod postgres;
 pub mod sqlite;
 
 /// Enum to support custom ordering in record queries
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum OrderBy {
     /// Order by ID field
+    #[default]
     Id,
 }
 
-impl Default for OrderBy {
-    fn default() -> Self {
-        OrderBy::Id
-    }
-}
 /// Represents a generic backend implementation
 pub trait Backend: Debug + Send + Sync {
     /// The type of session managed by this backend
@@ -58,6 +54,7 @@ pub trait Backend: Debug + Send + Sync {
     fn remove_profile(&self, name: String) -> BoxFuture<'_, Result<bool, Error>>;
 
     /// Create a [`Scan`] against the store
+    #[allow(clippy::too_many_arguments)]
     fn scan(
         &self,
         profile: Option<String>,
@@ -130,6 +127,7 @@ pub trait BackendSession: Debug + Send {
     ) -> BoxFuture<'q, Result<Option<Entry>, Error>>;
 
     /// Fetch all matching records from the store
+    #[allow(clippy::too_many_arguments)]
     fn fetch_all<'q>(
         &'q mut self,
         kind: Option<EntryKind>,

@@ -1,7 +1,7 @@
 name: "Aries-Askar"
 
 env:
-  RUST_VERSION: "1.70.0"
+  RUST_VERSION: "1.74.0"
   CROSS_VERSION: "0.2.4"
   TEST_FEATURES: ""
 
@@ -313,11 +313,10 @@ jobs:
   build-javascript:
     name: Build and test JavaScript wrapper
     needs: [build-release]
-    
+
     strategy:
       matrix:
-        architecture:
-          [linux-aarch64, linux-x86_64, darwin-universal]
+        architecture: [linux-aarch64, linux-x86_64, darwin-universal]
         include:
           - os: ubuntu-latest
             architecture: linux-aarch64
@@ -327,7 +326,7 @@ jobs:
             architecture: darwin-universal
 
     runs-on: ${{ matrix.os }}
-    
+
     defaults:
       run:
         working-directory: wrappers/javascript
@@ -434,7 +433,6 @@ jobs:
     needs: [checks]
 
     env:
-      RUST_VERSION: "1.67"
       FEATURES: "mobile_secure_element"
 
     runs-on: ubuntu-latest
@@ -466,7 +464,8 @@ jobs:
 
       - name: Build
         run: |
-          cargo install --bins --git https://github.com/rust-embedded/cross --locked --tag v${{ env.CROSS_VERSION }} cross
+          # Using a fixed pre-release tag with a fix for NDK 25 support
+          cargo install --git https://github.com/cross-rs/cross.git --rev 085092c cross
           # Required for compatibility with manylinux2014:
           # https://github.com/briansmith/ring/issues/1728
           if [ "${{ matrix.target }}" = "aarch64-linux-android" ]; then

@@ -1,6 +1,6 @@
 [package]
 name = "askar-crypto"
-version = "0.3.2"
+version = "0.3.3"
 authors = ["Hyperledger Aries Contributors <aries@lists.hyperledger.org>"]
 edition = "2021"
 description = "Hyperledger Aries Askar cryptography"
@@ -32,10 +32,10 @@ std = ["alloc", "serde/std", "serde-json-core/std", "std_rng", "uuid/std"]
 std_rng = ["getrandom", "rand/std", "rand/std_rng"]
 
 [dev-dependencies]
-base64 = { version = "0.21", default-features = false, features = ["alloc"] }
+base64 = { version = "0.22", default-features = false, features = ["alloc"] }
 criterion = "0.5"
 hex-literal = "0.4"
-serde-json-core = { version = "0.5", default-features = false, features = [
+serde-json-core = { version = "0.6", default-features = false, features = [
     "std",
 ] }
 serde_cbor = "0.11"
@@ -59,7 +59,7 @@ argon2 = { version = "0.5", default-features = false, features = [
     "alloc",
     "password-hash",
 ], optional = true }
-base64 = { version = "0.21", default-features = false }
+base64 = { version = "0.22", default-features = false }
 blake2 = { version = "0.10", default-features = false }
 block-modes = { version = "0.9", default-features = false, optional = true }
 bls12_381 = { version = "0.8", default-features = false, features = [
@@ -103,10 +103,12 @@ p384 = { version = "0.13", default-features = false, features = [
 rand = { version = "0.8", default-features = false }
 secure-env = { package = "animo-secure-env", version = "0.4", optional = true }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-serde-json-core = { version = "0.5", default-features = false }
+serde-json-core = { version = "0.6", default-features = false }
 sha2 = { version = "0.10", default-features = false }
 subtle = "2.4"
-uuid = { version = "1.8", default-features = false, optional = true, features = ["v4"] }
+uuid = { version = "1.8", default-features = false, optional = true, features = [
+    "v4",
+] }
 x25519-dalek = { version = "2", default-features = false, features = [
     "static_secrets",
     "zeroize",

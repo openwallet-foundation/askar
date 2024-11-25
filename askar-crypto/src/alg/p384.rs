@@ -130,6 +130,7 @@ impl KeyGen for P384KeyPair {
 
 impl KeySecretBytes for P384KeyPair {
     fn from_secret_bytes(key: &[u8]) -> Result<Self, Error> {
+        #[allow(clippy::unnecessary_fallible_conversions)]
         if let Ok(key) = key.try_into() {
             if let Ok(sk) = SecretKey::from_bytes(key) {
                 return Ok(Self::from_secret_key(sk));

@@ -118,6 +118,7 @@ impl Store {
     /// Create a new scan instance against the store
     ///
     /// The result will keep an open connection to the backend until it is consumed
+    #[allow(clippy::too_many_arguments)]
     pub async fn scan(
         &self,
         profile: Option<String>,
