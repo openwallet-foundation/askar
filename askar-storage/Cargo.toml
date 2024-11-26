@@ -9,7 +9,7 @@ readme = "README.md"
 repository = "https://github.com/hyperledger/aries-askar/"
 categories = ["cryptography", "database"]
 keywords = ["hyperledger", "aries", "ssi", "verifiable", "credentials"]
-rust-version = "1.63"
+rust-version = "1.81"
 
 [package.metadata.docs.rs]
 features = ["all_backends"]
