@@ -39,7 +39,7 @@ postgres = ["askar-storage/postgres"]
 sqlite = ["askar-storage/sqlite"]
 
 [dependencies]
-async-lock = "3.0"
+async-lock = "3.4"
 env_logger = { version = "0.11", optional = true }
 ffi-support = { version = "0.4", optional = true }
 jemallocator = { version = "0.5", optional = true }

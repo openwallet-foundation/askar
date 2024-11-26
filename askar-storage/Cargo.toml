@@ -27,7 +27,7 @@ sqlite = ["dep:sqlx", "sqlx?/sqlite"]
 
 [dependencies]
 arc-swap = "1.6"
-async-lock = "3.0"
+async-lock = "3.4"
 async-stream = "0.3"
 bs58 = "0.5"
 chrono = "0.4"
@@ -62,7 +62,7 @@ optional = true
 version = "0.8"
 
 [dev-dependencies]
-env_logger = "0.10"
+env_logger = "0.11"
 hex-literal = "0.4"
 rand = { version = "0.8" }
 
