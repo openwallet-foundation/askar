@@ -166,7 +166,7 @@ impl<K, V> Default for AbstractQuery<K, V> {
 }
 
 mod serde_support {
-    use std::string;
+    use core::fmt;
 
     use serde::ser::{Serialize, Serializer};
     use serde::{de, Deserialize, Deserializer};
@@ -266,9 +266,9 @@ mod serde_support {
         }
     }
 
-    impl string::ToString for Query {
-        fn to_string(&self) -> String {
-            self.to_value().to_string()
+    impl fmt::Display for Query {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_fmt(format_args!("{}", self.to_value()))
         }
     }
 

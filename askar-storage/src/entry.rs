@@ -12,7 +12,7 @@ use zeroize::Zeroize;
 use super::wql;
 use crate::{crypto::buffer::SecretBytes, error::Error};
 
-pub(crate) fn sorted_tags(tags: &Vec<EntryTag>) -> Vec<&EntryTag> {
+pub(crate) fn sorted_tags(tags: &[EntryTag]) -> Vec<&EntryTag> {
     if tags.is_empty() {
         Vec::new()
     } else {
@@ -195,7 +195,9 @@ impl TagFilter {
     #[inline]
     pub fn all_of(each: Vec<TagFilter>) -> Self {
         Self {
-            query: wql::Query::And(unsafe { std::mem::transmute(each) }),
+            query: wql::Query::And(unsafe {
+                std::mem::transmute::<Vec<TagFilter>, Vec<wql::Query>>(each)
+            }),
         }
     }
 
@@ -203,7 +205,9 @@ impl TagFilter {
     #[inline]
     pub fn any_of(each: Vec<TagFilter>) -> Self {
         Self {
-            query: wql::Query::Or(unsafe { std::mem::transmute(each) }),
+            query: wql::Query::Or(unsafe {
+                std::mem::transmute::<Vec<TagFilter>, Vec<wql::Query>>(each)
+            }),
         }
     }
 

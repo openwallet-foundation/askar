@@ -141,7 +141,7 @@ impl SecretBytes {
     pub(crate) fn splice(
         &mut self,
         range: Range<usize>,
-        iter: impl Iterator<Item = u8> + ExactSizeIterator,
+        iter: impl ExactSizeIterator<Item = u8>,
     ) -> Result<(), Error> {
         assert!(range.end >= range.start);
         let rem_len = range.len();

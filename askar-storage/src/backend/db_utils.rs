@@ -359,22 +359,6 @@ impl<'a, DB: ExtDatabase> Drop for DbSessionTxn<'a, DB> {
     }
 }
 
-pub(crate) trait RunInTransaction<'a, 'q: 'a, DB: ExtDatabase> {
-    type Fut: Future<Output = Result<(), Error>>;
-    fn call_once(self, conn: &'a mut DbSessionActive<'q, DB>) -> Self::Fut;
-}
-
-impl<'a, 'q: 'a, DB: ExtDatabase, F, Fut> RunInTransaction<'a, 'q, DB> for F
-where
-    F: FnOnce(&'a mut DbSessionActive<'q, DB>) -> Fut,
-    Fut: Future<Output = Result<(), Error>> + 'a,
-{
-    type Fut = Fut;
-    fn call_once(self, conn: &'a mut DbSessionActive<'q, DB>) -> Self::Fut {
-        self(conn)
-    }
-}
-
 pub struct EncScanEntry {
     pub kind: EntryKind,
     pub category: Vec<u8>,
