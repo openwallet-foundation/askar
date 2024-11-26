@@ -1,7 +1,11 @@
 """Handles for allocated resources."""
 
-import json
 import logging
+
+try:
+    import orjson as json
+except ImportError:
+    import json
 
 from ctypes import (
     POINTER,

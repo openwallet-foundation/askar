@@ -1,8 +1,12 @@
 """Low-level interaction with the aries-askar library."""
 
 import asyncio
-import json
 import logging
+
+try:
+    import orjson as json
+except ImportError:
+    import json
 
 from ctypes import POINTER, byref, c_int8, c_int32, c_int64
 from typing import Optional, Sequence, Union
