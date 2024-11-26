@@ -1,0 +1,15 @@
+local.properties
+build
+.gradle
+.DS_STORE
+.idea/
+.gradle/
+*.iml
+*.hprof
+.cxx/
+
+*.db*
+*.db
+*.db-shm
+*.db-wal
+target
