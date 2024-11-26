@@ -262,7 +262,7 @@ impl IndySdkToAriesAskarMigration {
         };
 
         let profile_key = match profile_row {
-            Some(profile_row) => serde_cbor::from_slice(&profile_row)
+            Some(profile_row) => ciborium::from_reader(&profile_row[..])
                 .map_err(err_map!(Input, "Invalid cbor encoding for profile_key"))?,
             None => {
                 let pk = ProfileKey::new()?;

@@ -63,13 +63,15 @@ where
     HmacKey: Serialize + for<'de> Deserialize<'de>,
 {
     pub fn to_bytes(&self) -> Result<SecretBytes, Error> {
-        serde_cbor::to_vec(self)
-            .map(SecretBytes::from)
-            .map_err(err_map!(Unexpected, "Error serializing profile key"))
+        let mut bytes = Vec::new();
+        ciborium::into_writer(self, &mut bytes)
+            .map_err(err_map!(Unexpected, "Error serializing profile key"))?;
+
+        Ok(SecretBytes::from(bytes))
     }
 
     pub fn from_slice(input: &[u8]) -> Result<Self, Error> {
-        serde_cbor::from_slice(input).map_err(err_map!(Unsupported, "Invalid profile key"))
+        ciborium::from_reader(input).map_err(err_map!(Unsupported, "Invalid profile key"))
     }
 }
 
@@ -315,8 +317,9 @@ mod tests {
     #[test]
     fn serialize_round_trip() {
         let key = ProfileKey::new().unwrap();
-        let key_cbor = serde_cbor::to_vec(&key).unwrap();
-        let key_cmp = serde_cbor::from_slice(&key_cbor).unwrap();
+        let mut key_cbor = Vec::new();
+        ciborium::into_writer(&key, &mut key_cbor).unwrap();
+        let key_cmp = ciborium::from_reader(&key_cbor[..]).unwrap();
         assert_eq!(key, key_cmp);
     }
 }

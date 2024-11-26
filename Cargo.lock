@@ -201,6 +201,7 @@ dependencies = [
  "askar-crypto",
  "askar-storage",
  "async-lock",
+ "ciborium",
  "criterion",
  "env_logger",
  "ffi-support",
@@ -209,7 +210,6 @@ dependencies = [
  "once_cell",
  "rand",
  "serde",
- "serde_cbor",
  "serde_json",
  "zeroize",
 ]
@@ -231,6 +231,7 @@ dependencies = [
  "cbc",
  "chacha20",
  "chacha20poly1305",
+ "ciborium",
  "cipher",
  "criterion",
  "crypto_box",
@@ -248,7 +249,6 @@ dependencies = [
  "rand",
  "serde",
  "serde-json-core",
- "serde_cbor",
  "sha2",
  "subtle",
  "uuid",
@@ -266,6 +266,7 @@ dependencies = [
  "async-stream",
  "bs58",
  "chrono",
+ "ciborium",
  "digest",
  "env_logger",
  "futures-lite",
@@ -279,7 +280,6 @@ dependencies = [
  "rand",
  "rmp-serde",
  "serde",
- "serde_cbor",
  "serde_json",
  "sha2",
  "sqlx",
@@ -589,7 +589,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9"
 dependencies = [
  "ciborium-io",
- "half 2.4.1",
+ "half",
 ]
 
 [[package]]
@@ -1271,12 +1271,6 @@ dependencies = [
  "rand_core",
  "subtle",
 ]
-
-[[package]]
-name = "half"
-version = "1.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b43ede17f21864e81be2fa654110bf1e793774238d86ef8555c37e6519c0403"
 
 [[package]]
 name = "half"
@@ -2309,16 +2303,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b81787e655bd59cecadc91f7b6b8651330b2be6c33246039a65e5cd6f4e0828"
 dependencies = [
  "ryu",
- "serde",
-]
-
-[[package]]
-name = "serde_cbor"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bef2ebfde456fb76bbcf9f59315333decc4fda0b2b44b420243c11e0f5ec1f5"
-dependencies = [
- "half 1.8.3",
  "serde",
 ]
 
