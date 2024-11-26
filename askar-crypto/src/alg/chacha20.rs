@@ -268,8 +268,9 @@ mod tests {
         fn test_serialize<T: Chacha20Type>() {
             let key = Chacha20Key::<T>::random().unwrap();
             let sk = key.to_secret_bytes().unwrap();
-            let bytes = serde_cbor::to_vec(&key).unwrap();
-            let deser: &[u8] = serde_cbor::from_slice(bytes.as_ref()).unwrap();
+            let mut bytes = vec![];
+            ciborium::into_writer(&key, &mut bytes).unwrap();
+            let deser: alloc::vec::Vec<u8> = ciborium::from_reader(&bytes[..]).unwrap();
             assert_eq!(deser, sk.as_ref());
         }
         test_serialize::<C20P>();

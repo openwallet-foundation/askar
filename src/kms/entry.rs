@@ -54,9 +54,11 @@ pub struct KeyParams {
 
 impl KeyParams {
     pub(crate) fn to_bytes(&self) -> Result<SecretBytes, Error> {
-        serde_cbor::to_vec(self)
-            .map(SecretBytes::from)
-            .map_err(|e| err_msg!(Unexpected, "Error serializing key params: {}", e))
+        let mut bytes = Vec::new();
+        ciborium::into_writer(self, &mut bytes)
+            .map_err(|e| err_msg!(Unexpected, "Error serializing key params: {}", e))?;
+
+        Ok(SecretBytes::from(bytes))
     }
 
     pub(crate) fn to_id(&self) -> Result<String, Error> {
@@ -70,7 +72,7 @@ impl KeyParams {
     }
 
     pub(crate) fn from_slice(params: &[u8]) -> Result<KeyParams, Error> {
-        serde_cbor::from_slice(params)
+        ciborium::from_reader(params)
             .map_err(|e| err_msg!(Unexpected, "Error deserializing key params: {}", e))
     }
 }

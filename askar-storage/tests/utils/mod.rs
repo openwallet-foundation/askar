@@ -245,7 +245,7 @@ pub async fn db_replace_missing(db: AnyBackend) {
 
 pub async fn db_count(db: AnyBackend) {
     let category = "category".to_string();
-    let test_rows = vec![Entry::new(
+    let test_rows = [Entry::new(
         EntryKind::Item,
         &category,
         "name",

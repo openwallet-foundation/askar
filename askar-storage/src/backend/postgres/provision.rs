@@ -513,7 +513,7 @@ pub(crate) async fn open_db(
 fn _validate_ident(ident: &str, name: &str) -> Result<(), Error> {
     if ident.is_empty() {
         Err(err_msg!(Input, "{name} identifier is empty"))
-    } else if ident.find(|c| c == '"' || c == '\0').is_some() {
+    } else if ident.find(['"', '\0']).is_some() {
         Err(err_msg!(
             Input,
             "Invalid character in {name} identifier: '\"' and '\\0' are disallowed"

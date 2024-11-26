@@ -73,14 +73,17 @@ impl SqliteStoreOptions {
                 .parse()
                 .map_err(err_map!(Input, "Error parsing 'max_connections' parameter"))?
         } else {
-            available_parallelism()
-                .map_err(err_map!(
-                    Unexpected,
-                    "Error determining available parallelism"
-                ))?
-                .get()
-                .max(DEFAULT_LOWER_MAX_CONNECTIONS)
-                .min(DEFAULT_UPPER_MAX_CONNECTIONS) as u32
+            #[allow(clippy::manual_clamp)]
+            {
+                available_parallelism()
+                    .map_err(err_map!(
+                        Unexpected,
+                        "Error determining available parallelism"
+                    ))?
+                    .get()
+                    .max(DEFAULT_LOWER_MAX_CONNECTIONS)
+                    .min(DEFAULT_UPPER_MAX_CONNECTIONS) as u32
+            }
         };
         let min_connections = if let Some(min_conn) = opts.query.remove("min_connections") {
             min_conn

@@ -137,7 +137,7 @@ pub extern "C" fn askar_store_generate_raw_key(
     catch_err! {
         trace!("Create raw store key");
         let seed = match seed.as_slice() {
-            s if s.is_empty() => None,
+            &[] => None,
             s => Some(s)
         };
         let key = Store::new_raw_key(seed)?;

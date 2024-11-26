@@ -40,7 +40,7 @@ impl Writer<'_, [u8]> {
     pub(crate) fn splice(
         &mut self,
         range: Range<usize>,
-        mut iter: impl Iterator<Item = u8> + ExactSizeIterator,
+        mut iter: impl ExactSizeIterator<Item = u8>,
     ) -> Result<(), Error> {
         assert!(range.end >= range.start);
         let rem_len = range.len();

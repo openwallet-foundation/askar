@@ -1,3 +1,5 @@
+use core::fmt;
+
 use super::{AbstractQuery, Query};
 use crate::error::Error;
 
@@ -28,11 +30,11 @@ pub enum TagName {
     Plaintext(String),
 }
 
-impl ToString for TagName {
-    fn to_string(&self) -> String {
+impl fmt::Display for TagName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Encrypted(v) => v.to_string(),
-            Self::Plaintext(v) => format!("~{}", v),
+            Self::Encrypted(v) => f.write_str(v),
+            Self::Plaintext(v) => f.write_fmt(format_args!("~{}", v)),
         }
     }
 }
