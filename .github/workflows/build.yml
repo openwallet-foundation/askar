@@ -247,10 +247,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install setuptools wheel twine auditwheel
+      - name: Set up Poetry
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: "1.8.3"
 
       - name: Fetch library artifacts
         uses: actions/download-artifact@v4
@@ -269,7 +269,20 @@ jobs:
       - name: Build wheel package
         shell: sh
         run: |
-          python setup.py bdist_wheel --python-tag=py3 --plat-name=${{ matrix.plat-name }}
+          poetry install --no-dev
+          poetry build
+
+          ### Platform-specific wheel renaming:
+          wheel_file=$(find dist/ -type f -name '*.whl')
+          echo "Original wheel file: ${wheel_file}"
+
+          platform_name="${{ matrix.plat-name }}"
+          echo "Using platform name: ${platform_name}"
+
+          new_wheel_file=$(echo ${wheel_file} | sed "s/\(-any\)\?\.whl$/-${platform_name}.whl/")
+          echo "Renaming wheel file to: ${new_wheel_file}"
+
+          mv "${wheel_file}" "${new_wheel_file}"
         working-directory: wrappers/python
 
       - name: Run tests
@@ -278,14 +291,14 @@ jobs:
         if: ${{ matrix.architecture != 'linux-aarch64' }}
         shell: sh
         run: |
-          pip install pytest pytest-asyncio dist/*
+          poetry install
           echo "-- Test SQLite in-memory --"
-          python -m pytest --log-cli-level=WARNING -k "not contention"
+          poetry run pytest --log-cli-level=WARNING -k "not contention"
           echo "-- Test SQLite file DB --"
-          TEST_STORE_URI=sqlite://test.db python -m pytest --log-cli-level=WARNING -k "not contention"
+          TEST_STORE_URI=sqlite://test.db poetry run pytest --log-cli-level=WARNING -k "not contention"
           if [ -n "$POSTGRES_URL" ]; then
             echo "-- Test Postgres DB --"
-            TEST_STORE_URI="$POSTGRES_URL" python -m pytest --log-cli-level=WARNING -k "not contention"
+            TEST_STORE_URI="$POSTGRES_URL" poetry run pytest --log-cli-level=WARNING -k "not contention"
           fi
         working-directory: wrappers/python
         env:
@@ -296,18 +309,19 @@ jobs:
       - if: ${{ runner.os == 'Linux' }}
         name: Audit wheel
         run: |
-          auditwheel show wrappers/python/dist/* | tee auditwheel.log
+          pip install auditwheel
+          auditwheel show wrappers/python/dist/*.whl | tee auditwheel.log
           grep -q manylinux_2_17_ auditwheel.log
 
       - if: |
           github.event_name == 'release' ||
           (github.event_name == 'workflow_dispatch' && github.event.inputs.publish-python-wrapper == 'true')
-        name: Publish
+        name: Publish wheel
         env:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
-          twine upload --skip-existing dist/*
+          twine upload --skip-existing dist/*.whl
         working-directory: wrappers/python
 
   build-javascript:
