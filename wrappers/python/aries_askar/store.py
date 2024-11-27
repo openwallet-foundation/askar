@@ -1,6 +1,9 @@
 """Handling of Store instances."""
 
-import json
+try:
+    import orjson as json
+except ImportError:
+    import json
 
 from typing import Optional, Sequence, Union
 

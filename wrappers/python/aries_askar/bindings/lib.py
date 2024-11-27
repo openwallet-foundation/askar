@@ -1,13 +1,17 @@
 """Library instance and allocated buffer handling."""
 
 import asyncio
-import json
 import itertools
 import logging
 import os
 import sys
 import threading
 import time
+
+try:
+    import orjson as json
+except ImportError:
+    import json
 
 from ctypes import (
     Array,
