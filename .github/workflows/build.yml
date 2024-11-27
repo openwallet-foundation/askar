@@ -32,11 +32,6 @@ on:
         required: true
         default: false
         type: boolean
-      publish-javascript-wrapper:
-        description: "Publish JavaScript Wrapper to Registries"
-        required: true
-        default: false
-        type: boolean
 
 jobs:
   checks:
@@ -310,92 +305,6 @@ jobs:
           twine upload --skip-existing dist/*
         working-directory: wrappers/python
 
-  build-javascript:
-    name: Build and test JavaScript wrapper
-    needs: [build-release]
-
-    strategy:
-      matrix:
-        architecture: [linux-aarch64, linux-x86_64, darwin-universal]
-        include:
-          - os: ubuntu-latest
-            architecture: linux-aarch64
-          - os: ubuntu-latest
-            architecture: linux-x86_64
-          - os: macos-latest
-            architecture: darwin-universal
-
-    runs-on: ${{ matrix.os }}
-
-    defaults:
-      run:
-        working-directory: wrappers/javascript
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.JS 18.x
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18.x
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Fetch library artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: library-${{ matrix.architecture }}
-
-      - name: Install python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install setuptools wheel twine auditwheel
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Check format
-        run: pnpm check-format
-
-      - name: Check types
-        run: pnpm check-types
-
-      - name: Run tests
-        if: ${{ matrix.architecture != 'linux-aarch64' }}
-        env:
-          # binary is downloaded to root of repository
-          LIB_ARIES_ASKAR_PATH: ../../
-        run: pnpm test
-
-      - name: Set NPM config
-        if: |
-          github.event_name == 'release' ||
-          (github.event_name == 'workflow_dispatch' && github.event.inputs.publish-javascript-wrapper == 'true')
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
-          echo "registry=https://registry.npmjs.org/" >> .npmrc
-          echo "always-auth=true" >> .npmrc
-
-      - name: Publish JavaScript Wrapper
-        if: |
-          github.event_name == 'release' ||
-          (github.event_name == 'workflow_dispatch' && github.event.inputs.publish-javascript-wrapper == 'true')
-        run: |
-          if [[ $(cat lerna.json | grep version | head -1 | grep dev) ]]; then
-            pnpm release:alpha
-          else
-            pnpm release
-          fi
-
   build-ios:
     name: Build library (iOS)
     needs: [checks]
@@ -580,7 +489,7 @@ jobs:
   build-success:
     # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
     name: Successful build
-    needs: [tests, build-release, build-py, build-javascript]
+    needs: [tests, build-release, build-py]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:

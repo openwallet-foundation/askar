@@ -1,5 +1,5 @@
- # For details on how this file works refer to:
- #   - https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# For details on how this file works refer to:
+#   - https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 version: 2
 updates:
   # Maintain dependencies for GitHub Actions
@@ -11,19 +11,7 @@ updates:
       interval: "weekly"
     groups:
       all-actions:
-        patterns: [ "*" ]
-
-  # Maintain dependencies for TypeScript and JavaScript
-  - package-ecosystem: "npm"
-    directory: "/wrappers/javascript"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "04:00"
-      timezone: "Canada/Pacific"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major", "version-update:semver-patch"]
+        patterns: ["*"]
 
   # Maintain dependencies for pip
   - package-ecosystem: "pip"
@@ -35,7 +23,8 @@ updates:
       timezone: "Canada/Pacific"
     ignore:
       - dependency-name: "*"
-        update-types: ["version-update:semver-major", "version-update:semver-patch"]
+        update-types:
+          ["version-update:semver-major", "version-update:semver-patch"]
 
   # Maintain dependencies for Cargo Packages
   - package-ecosystem: "cargo"
@@ -60,4 +49,3 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-        
