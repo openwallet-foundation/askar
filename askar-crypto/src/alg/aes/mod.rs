@@ -127,7 +127,7 @@ impl<T: AesType> FromJwk for AesKey<T> {
         if jwk.kty != JWK_KEY_TYPE {
             return Err(err_msg!(InvalidKeyData, "Unsupported key type"));
         }
-        if jwk.alg != T::JWK_ALG {
+        if jwk.alg.is_some() && jwk.alg != T::JWK_ALG {
             return Err(err_msg!(InvalidKeyData, "Unsupported key algorithm"));
         }
         Ok(Self(ArrayKey::try_new_with(|buf| {
