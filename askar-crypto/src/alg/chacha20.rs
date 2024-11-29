@@ -281,6 +281,27 @@ mod tests {
         test_encrypt::<XC20P>();
     }
 
+    #[cfg(feature = "any_key")]
+    #[test]
+    fn jwk_any_compat() {
+        use crate::alg::{any::AnyKey, Chacha20Types, KeyAlg};
+        use alloc::boxed::Box;
+
+        let test_jwk_compat = r#"
+            {"alg": "XC20P",
+            "k": "IateWalmifmgIAtA6XhbPVKPmjBUiwrs3p0ePHpMivU",
+            "kty": "oct"}
+        "#;
+        let key = Box::<AnyKey>::from_jwk(test_jwk_compat).expect("Error decoding ChaCha key JWK");
+        assert_eq!(key.algorithm(), KeyAlg::Chacha20(Chacha20Types::XC20P));
+        let as_chacha = key
+            .downcast_ref::<Chacha20Key<XC20P>>()
+            .expect("Error downcasting ChaCha key");
+        let _ = as_chacha
+            .to_jwk_secret(None)
+            .expect("Error converting key to JWK");
+    }
+
     #[test]
     fn serialize_round_trip() {
         fn test_serialize<T: Chacha20Type>() {

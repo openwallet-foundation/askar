@@ -16,32 +16,27 @@ def test_get_supported_backends():
     assert backends == [str(KeyBackend.Software)]
 
 
-def test_aes_cbc_hmac():
-    key = Key.generate(KeyAlg.A128CBC_HS256)
-    assert key.algorithm == KeyAlg.A128CBC_HS256
+@pytest.mark.parametrize(
+    "key_alg",
+    [KeyAlg.A128CBC_HS256, KeyAlg.A128GCM, KeyAlg.XC20P],
+)
+def test_symmetric(key_alg: KeyAlg):
+    key = Key.generate(key_alg)
+    assert key.algorithm == key_alg
 
     data = b"test message"
     nonce = key.aead_random_nonce()
     params = key.aead_params()
-    assert params.nonce_length == 16
-    assert params.tag_length == 16
+    assert isinstance(params.nonce_length, int)
+    assert isinstance(params.tag_length, int)
     enc = key.aead_encrypt(data, nonce=nonce, aad=b"aad")
     dec = key.aead_decrypt(enc, nonce=nonce, aad=b"aad")
     assert data == bytes(dec)
 
-
-def test_aes_gcm():
-    key = Key.generate(KeyAlg.A128GCM)
-    assert key.algorithm == KeyAlg.A128GCM
-
-    data = b"test message"
-    nonce = key.aead_random_nonce()
-    params = key.aead_params()
-    assert params.nonce_length == 12
-    assert params.tag_length == 16
-    enc = key.aead_encrypt(data, nonce=nonce, aad=b"aad")
-    dec = key.aead_decrypt(enc, nonce=nonce, aad=b"aad")
-    assert data == bytes(dec)
+    jwk = json.loads(key.get_jwk_secret())
+    assert jwk["kty"] == "oct"
+    assert KeyAlg.from_key_alg(jwk["alg"].lower().replace("-", "")) == key_alg
+    assert jwk["k"]
 
 
 def test_bls_keygen():

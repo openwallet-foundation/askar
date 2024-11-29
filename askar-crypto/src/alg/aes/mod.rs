@@ -310,6 +310,27 @@ mod tests {
             .unwrap();
     }
 
+    #[cfg(feature = "any_key")]
+    #[test]
+    fn jwk_any_compat() {
+        use crate::alg::{any::AnyKey, AesTypes, KeyAlg};
+        use alloc::boxed::Box;
+
+        let test_jwk_compat = r#"
+            {"alg": "A128CBC-HS256",
+            "k": "6scajSsnjo2fI-wjCCvBC2xNSYyErNyN93CAsyzVVGI",
+            "kty": "oct"}
+        "#;
+        let key = Box::<AnyKey>::from_jwk(test_jwk_compat).expect("Error decoding AES key JWK");
+        assert_eq!(key.algorithm(), KeyAlg::Aes(AesTypes::A128CbcHs256));
+        let as_aes = key
+            .downcast_ref::<AesKey<A128CbcHs256>>()
+            .expect("Error downcasting AES key");
+        let _ = as_aes
+            .to_jwk_secret(None)
+            .expect("Error converting key to JWK");
+    }
+
     #[test]
     fn serialize_round_trip() {
         fn test_serialize<T: AesType>() {

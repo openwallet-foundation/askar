@@ -241,7 +241,7 @@ async def test_txn_contention(store: Store):
 
 
 @mark.asyncio
-async def test_key_store(store: Store):
+async def test_key_store_ed25519(store: Store):
     # test key operations in a new session
     async with store as session:
         # Create a new keypair
@@ -272,6 +272,45 @@ async def test_key_store(store: Store):
         keys = await session.fetch_all_keys(
             alg=KeyAlg.ED25519, thumbprint=thumbprint, tag_filter={"a": "c"}, limit=1
         )
+        assert len(keys) == 1 and keys[0].name == key_name
+
+        # Remove
+        await session.remove_key(key_name)
+        assert await session.fetch_key(key_name) is None
+
+
+@mark.asyncio
+@mark.parametrize(
+    "key_alg",
+    [KeyAlg.A128CBC_HS256, KeyAlg.XC20P],
+)
+async def test_key_store_symmetric(store: Store, key_alg: KeyAlg):
+    # test key operations in a new session
+    async with store as session:
+        # Create a new keypair
+        symm = Key.generate(key_alg)
+
+        # Store symmetric key
+        key_name = "testkey"
+        await session.insert_key(key_name, symm, metadata="metadata", tags={"a": "b"})
+
+        # Fetch keypair
+        fetch_key = await session.fetch_key(key_name)
+        assert fetch_key and fetch_key.name == key_name and fetch_key.tags == {"a": "b"}
+
+        # Update keypair
+        await session.update_key(key_name, metadata="updated metadata", tags={"a": "c"})
+
+        # Fetch keypair
+        fetch_key = await session.fetch_key(key_name)
+        assert fetch_key and fetch_key.name == key_name and fetch_key.tags == {"a": "c"}
+
+        # Check key equality
+        jwk_secret = symm.get_jwk_secret()
+        assert fetch_key.key.get_jwk_secret() == jwk_secret
+
+        # Fetch with filters
+        keys = await session.fetch_all_keys(alg=key_alg, tag_filter={"a": "c"}, limit=1)
         assert len(keys) == 1 and keys[0].name == key_name
 
         # Remove
