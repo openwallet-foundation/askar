@@ -45,9 +45,9 @@ pub const SECRET_KEY_LENGTH: usize = 32;
 pub const KEYPAIR_LENGTH: usize = SECRET_KEY_LENGTH + PUBLIC_KEY_LENGTH;
 
 /// The 'kty' value of an elliptic curve key JWK
-pub static JWK_KEY_TYPE: &str = "EC";
+pub const JWK_KEY_TYPE: &str = "EC";
 /// The 'crv' value of a K-256 key JWK
-pub static JWK_CURVE: &str = "secp256k1";
+pub const JWK_CURVE: &str = "secp256k1";
 
 type FieldSize = elliptic_curve::FieldBytesSize<k256::Secp256k1>;
 

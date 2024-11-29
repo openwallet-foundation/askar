@@ -13,7 +13,7 @@ use crate::{
     encrypt::{KeyAeadInPlace, KeyAeadMeta, KeyAeadParams},
     error::Error,
     generic_array::{typenum::Unsigned, GenericArray},
-    jwk::{JwkEncoder, ToJwk},
+    jwk::{FromJwk, JwkEncoder, JwkParts, ToJwk},
     kdf::{FromKeyDerivation, FromKeyExchange, KeyDerivation, KeyExchange},
     random::KeyMaterial,
     repr::{KeyGen, KeyMeta, KeySecretBytes},
@@ -204,6 +204,24 @@ impl<T: Chacha20Type> KeyAeadInPlace for Chacha20Key<T> {
             nonce_length: NonceSize::<T>::USIZE,
             tag_length: TagSize::<T>::USIZE,
         }
+    }
+}
+
+impl<T: Chacha20Type> FromJwk for Chacha20Key<T> {
+    fn from_jwk_parts(jwk: JwkParts<'_>) -> Result<Self, Error> {
+        if jwk.kty != JWK_KEY_TYPE {
+            return Err(err_msg!(InvalidKeyData, "Unsupported key type"));
+        }
+        if jwk.alg != T::JWK_ALG {
+            return Err(err_msg!(InvalidKeyData, "Unsupported key algorithm"));
+        }
+        Ok(Self(ArrayKey::try_new_with(|buf| {
+            if jwk.k.decode_base64(buf)? != buf.len() {
+                Err(err_msg!(InvalidKeyData))
+            } else {
+                Ok(())
+            }
+        })?))
     }
 }
 

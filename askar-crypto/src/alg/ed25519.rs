@@ -27,9 +27,9 @@ use crate::{
 };
 
 /// The 'kty' value of an Ed25519 JWK
-pub static JWK_KEY_TYPE: &str = "OKP";
+pub const JWK_KEY_TYPE: &str = "OKP";
 /// The 'crv' value of an Ed25519 JWK
-pub static JWK_CURVE: &str = "Ed25519";
+pub const JWK_CURVE: &str = "Ed25519";
 
 /// An Ed25519 public key or keypair
 #[derive(Clone)]

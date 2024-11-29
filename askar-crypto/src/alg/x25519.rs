@@ -32,9 +32,9 @@ pub const SECRET_KEY_LENGTH: usize = 32;
 pub const KEYPAIR_LENGTH: usize = SECRET_KEY_LENGTH + PUBLIC_KEY_LENGTH;
 
 /// The 'kty' value of an X25519 JWK
-pub static JWK_KEY_TYPE: &str = "OKP";
+pub const JWK_KEY_TYPE: &str = "OKP";
 /// The 'crv' value of an X25519 JWK
-pub static JWK_CURVE: &str = "X25519";
+pub const JWK_CURVE: &str = "X25519";
 
 /// An X25519 public key or keypair
 #[derive(Clone)]
