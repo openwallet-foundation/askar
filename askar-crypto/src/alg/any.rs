@@ -7,7 +7,7 @@ use core::{
 
 #[cfg(feature = "aes")]
 use super::{
-    aes::{A128CbcHs256, A128Gcm, A128Kw, A256CbcHs512, A256Gcm, A256Kw, AesKey},
+    aes::{A128CbcHs256, A128Gcm, A128Kw, A256CbcHs512, A256Gcm, A256Kw, AesKey, AesType},
     AesTypes,
 };
 
@@ -19,7 +19,7 @@ use super::{
 
 #[cfg(feature = "chacha")]
 use super::{
-    chacha20::{Chacha20Key, C20P, XC20P},
+    chacha20::{Chacha20Key, Chacha20Type, C20P, XC20P},
     Chacha20Types,
 };
 
@@ -601,34 +601,45 @@ impl FromJwk for Arc<AnyKey> {
 
 #[inline]
 fn from_jwk_any<R: AllocKey>(jwk: JwkParts<'_>) -> Result<R, Error> {
-    match (jwk.kty, jwk.crv.as_ref()) {
-        #[cfg(feature = "ed25519")]
-        ("OKP", c) if c == ed25519::JWK_CURVE => {
-            Ed25519KeyPair::from_jwk_parts(jwk).map(R::alloc_key)
+    match (jwk.kty, jwk.crv.as_ref(), jwk.alg.as_ref()) {
+        #[cfg(feature = "aes")]
+        ("oct", _, A128Gcm::JWK_ALG) => AesKey::<A128Gcm>::from_jwk_parts(jwk).map(R::alloc_key),
+        #[cfg(feature = "aes")]
+        ("oct", _, A256Gcm::JWK_ALG) => AesKey::<A256Gcm>::from_jwk_parts(jwk).map(R::alloc_key),
+        #[cfg(feature = "aes")]
+        ("oct", _, A128CbcHs256::JWK_ALG) => {
+            AesKey::<A128CbcHs256>::from_jwk_parts(jwk).map(R::alloc_key)
         }
-        #[cfg(feature = "ed25519")]
-        ("OKP", c) if c == x25519::JWK_CURVE => {
-            X25519KeyPair::from_jwk_parts(jwk).map(R::alloc_key)
+        #[cfg(feature = "aes")]
+        ("oct", _, A256CbcHs512::JWK_ALG) => {
+            AesKey::<A256CbcHs512>::from_jwk_parts(jwk).map(R::alloc_key)
         }
+        #[cfg(feature = "aes")]
+        ("oct", _, A128Kw::JWK_ALG) => AesKey::<A128Kw>::from_jwk_parts(jwk).map(R::alloc_key),
+        #[cfg(feature = "aes")]
+        ("oct", _, A256Kw::JWK_ALG) => AesKey::<A256Kw>::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "bls")]
-        ("OKP" | "EC", c) if c == G1::JWK_CURVE => {
-            BlsKeyPair::<G1>::from_jwk_parts(jwk).map(R::alloc_key)
-        }
+        ("OKP" | "EC", G1::JWK_CURVE, _) => BlsKeyPair::<G1>::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "bls")]
-        ("OKP" | "EC", c) if c == G2::JWK_CURVE => {
-            BlsKeyPair::<G2>::from_jwk_parts(jwk).map(R::alloc_key)
-        }
+        ("OKP" | "EC", G2::JWK_CURVE, _) => BlsKeyPair::<G2>::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "bls")]
-        ("OKP" | "EC", c) if c == G1G2::JWK_CURVE => {
+        ("OKP" | "EC", G1G2::JWK_CURVE, _) => {
             BlsKeyPair::<G1G2>::from_jwk_parts(jwk).map(R::alloc_key)
         }
+        #[cfg(feature = "chacha")]
+        ("oct", _, C20P::JWK_ALG) => Chacha20Key::<C20P>::from_jwk_parts(jwk).map(R::alloc_key),
+        #[cfg(feature = "chacha")]
+        ("oct", _, XC20P::JWK_ALG) => Chacha20Key::<XC20P>::from_jwk_parts(jwk).map(R::alloc_key),
+        #[cfg(feature = "ed25519")]
+        ("OKP", ed25519::JWK_CURVE, _) => Ed25519KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
+        #[cfg(feature = "ed25519")]
+        ("OKP", x25519::JWK_CURVE, _) => X25519KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "k256")]
-        ("EC", c) if c == k256::JWK_CURVE => K256KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
+        ("EC", k256::JWK_CURVE, _) => K256KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "p256")]
-        ("EC", c) if c == p256::JWK_CURVE => P256KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
+        ("EC", p256::JWK_CURVE, _) => P256KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "p384")]
-        ("EC", c) if c == p384::JWK_CURVE => P384KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
-        // FIXME implement symmetric keys?
+        ("EC", p384::JWK_CURVE, _) => P384KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
         _ => Err(err_msg!(Unsupported, "Unsupported JWK for key import")),
     }
 }
