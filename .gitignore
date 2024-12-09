@@ -6,13 +6,4 @@ target
 .DS_Store
 *.tgz
 *.so
-.npmrc
 out
-
-# react Native Libraries
-wrappers/javascript/packages/aries-askar-react-native/native/mobile/
-
-# Example app
-wrappers/javascript/packages/aries-askar-react-native-example/android
-wrappers/javascript/packages/aries-askar-react-native-example/ios
-wrappers/javascript/packages/aries-askar-react-native-example/.expo
