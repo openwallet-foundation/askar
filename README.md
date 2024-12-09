@@ -57,7 +57,7 @@ If you have an implementation of Aries that is currently based on the
 tools is demonstrated in the [ACA-Py] migration tool that can be found in the
 [acapy-tools] repository.
 
-[aries-acapy-tools]: https://github.com/openwallet-foundation/acapy-tools
+[acapy-tools]: https://github.com/openwallet-foundation/acapy-tools
 
 ## Credit
 
