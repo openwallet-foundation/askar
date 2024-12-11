@@ -211,6 +211,8 @@ jobs:
   build-py:
     name: Build and test Python wrapper
     needs: [build-release]
+    permissions:
+      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
 
     strategy:
       matrix:
@@ -221,15 +223,27 @@ jobs:
           - os: ubuntu-latest
             architecture: linux-aarch64
             plat-name: manylinux2014_aarch64
+            environment:
+              name: pypi
+              url: https://pypi.org/p/aries-askar
           - os: ubuntu-latest
             architecture: linux-x86_64
             plat-name: manylinux2014_x86_64
+            environment:
+              name: pypi
+              url: https://pypi.org/p/aries-askar
           - os: macos-latest
             architecture: darwin-universal
             plat-name: macosx_10_9_universal2 # macosx_10_9_x86_64
+            environment:
+              name: pypi
+              url: https://pypi.org/p/aries-askar
           - os: windows-latest
             architecture: windows-x86_64
             plat-name: win_amd64
+            environment:
+              name: pypi
+              url: https://pypi.org/p/aries-askar
 
     runs-on: ${{ matrix.os }}
 
@@ -294,16 +308,11 @@ jobs:
           auditwheel show wrappers/python/dist/* | tee auditwheel.log
           grep -q manylinux_2_17_ auditwheel.log
 
-      - if: |
-          github.event_name == 'release' ||
-          (github.event_name == 'workflow_dispatch' && github.event.inputs.publish-python-wrapper == 'true')
-        name: Publish
-        env:
-          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-        run: |
-          twine upload --skip-existing dist/*
-        working-directory: wrappers/python
+      - name: Publish
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish-python-wrapper == 'true')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: wrappers/python/dist
 
   build-ios:
     name: Build library (iOS)
