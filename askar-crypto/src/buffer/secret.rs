@@ -303,7 +303,7 @@ impl<'de> Deserialize<'de> for SecretBytes {
 
 struct SecVisitor;
 
-impl<'de> de::Visitor<'de> for SecVisitor {
+impl de::Visitor<'_> for SecVisitor {
     type Value = SecretBytes;
 
     fn expecting(&self, formatter: &mut Formatter<'_>) -> fmt::Result {

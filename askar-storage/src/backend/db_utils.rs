@@ -243,7 +243,7 @@ impl<DB: ExtDatabase> DbSessionRef<'_, DB> {
     }
 }
 
-impl<'q, DB: ExtDatabase> Deref for DbSessionRef<'q, DB> {
+impl<DB: ExtDatabase> Deref for DbSessionRef<'_, DB> {
     type Target = DbSession<DB>;
 
     fn deref(&self) -> &Self::Target {
@@ -254,7 +254,7 @@ impl<'q, DB: ExtDatabase> Deref for DbSessionRef<'q, DB> {
     }
 }
 
-impl<'q, DB: ExtDatabase> DerefMut for DbSessionRef<'q, DB> {
+impl<DB: ExtDatabase> DerefMut for DbSessionRef<'_, DB> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             Self::Owned(e) => e,
@@ -349,7 +349,7 @@ impl<'a, DB: ExtDatabase> DbSessionTxn<'a, DB> {
     }
 }
 
-impl<'a, DB: ExtDatabase> Drop for DbSessionTxn<'a, DB> {
+impl<DB: ExtDatabase> Drop for DbSessionTxn<'_, DB> {
     fn drop(&mut self) {
         if self.rollback {
             self.inner.txn_depth -= 1;

@@ -200,7 +200,7 @@ struct KeyVisitor<L: ArrayLength<u8>> {
     _pd: PhantomData<L>,
 }
 
-impl<'de, L: ArrayLength<u8>> de::Visitor<'de> for KeyVisitor<L> {
+impl<L: ArrayLength<u8>> de::Visitor<'_> for KeyVisitor<L> {
     type Value = ArrayKey<L>;
 
     fn expecting(&self, formatter: &mut Formatter<'_>) -> fmt::Result {

@@ -149,13 +149,13 @@ impl Serialize for EntryTagSet<'_> {
         #[derive(PartialOrd, Ord)]
         struct TagName<'a>(&'a str, bool);
 
-        impl<'a> PartialEq for TagName<'a> {
+        impl PartialEq for TagName<'_> {
             fn eq(&self, other: &Self) -> bool {
                 self.1 == other.1 && self.0 == other.0
             }
         }
 
-        impl<'a> Eq for TagName<'a> {}
+        impl Eq for TagName<'_> {}
 
         impl Serialize for TagName<'_> {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
