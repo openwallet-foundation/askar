@@ -128,9 +128,8 @@ impl KeyGen for K256KeyPair {
 
 impl KeySecretBytes for K256KeyPair {
     fn from_secret_bytes(key: &[u8]) -> Result<Self, Error> {
-        #[allow(clippy::unnecessary_fallible_conversions)]
-        if let Ok(key) = key.try_into() {
-            if let Ok(sk) = SecretKey::from_bytes(key) {
+        if key.len() == SECRET_KEY_LENGTH {
+            if let Ok(sk) = SecretKey::from_bytes(key.into()) {
                 return Ok(Self::from_secret_key(sk));
             }
         }
