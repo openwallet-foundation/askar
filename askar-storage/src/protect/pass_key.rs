@@ -11,7 +11,7 @@ use std::{
 #[derive(Clone, Default)]
 pub struct PassKey<'a>(Option<Cow<'a, str>>);
 
-impl<'a> PassKey<'a> {
+impl PassKey<'_> {
     /// Create a scoped reference to the passkey
     pub fn as_ref(&self) -> PassKey<'_> {
         PassKey(Some(Cow::Borrowed(&**self)))
@@ -83,8 +83,8 @@ impl<'a> From<Option<&'a str>> for PassKey<'a> {
     }
 }
 
-impl<'a, 'b> PartialEq<PassKey<'b>> for PassKey<'a> {
-    fn eq(&self, other: &PassKey<'b>) -> bool {
+impl<'a> PartialEq<PassKey<'a>> for PassKey<'_> {
+    fn eq(&self, other: &PassKey<'a>) -> bool {
         **self == **other
     }
 }

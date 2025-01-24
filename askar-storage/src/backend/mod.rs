@@ -143,7 +143,7 @@ pub trait BackendSession: Debug + Send {
     fn import_scan<'q>(
         &'q mut self,
         mut scan: Scan<'q, Entry>,
-    ) -> BoxFuture<'_, Result<(), Error>> {
+    ) -> BoxFuture<'q, Result<(), Error>> {
         Box::pin(async move {
             while let Some(rows) = scan.fetch_next().await? {
                 for entry in rows {

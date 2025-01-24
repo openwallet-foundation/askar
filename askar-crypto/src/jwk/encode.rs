@@ -244,7 +244,7 @@ impl<'s, K: ToJwk> JwkSerialize<'s, K> {
     }
 }
 
-impl<'s, K: ToJwk> Serialize for JwkSerialize<'s, K> {
+impl<K: ToJwk> Serialize for JwkSerialize<'_, K> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

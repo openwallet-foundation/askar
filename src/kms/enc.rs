@@ -59,7 +59,7 @@ pub struct ToDecrypt<'d> {
     pub tag: &'d [u8],
 }
 
-impl<'d> ToDecrypt<'d> {
+impl ToDecrypt<'_> {
     /// Accessor for the combined length
     #[allow(clippy::len_without_is_empty)]
     #[inline]

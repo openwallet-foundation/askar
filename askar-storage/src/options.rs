@@ -24,7 +24,7 @@ pub struct Options<'a> {
     pub fragment: Cow<'a, str>,
 }
 
-impl<'a> Options<'a> {
+impl Options<'_> {
     /// Parse a URI string into an Options structure
     pub fn parse_uri(uri: &str) -> Result<Options<'_>, Error> {
         let mut fragment_and_remain = uri.splitn(2, '#');
