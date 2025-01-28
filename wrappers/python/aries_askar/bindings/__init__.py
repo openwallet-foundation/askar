@@ -1,4 +1,4 @@
-"""Low-level interaction with the aries-askar library."""
+"""Low-level interaction with the Askar library."""
 
 import asyncio
 import logging
