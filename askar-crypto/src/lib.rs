@@ -1,4 +1,4 @@
-//! Cryptography primitives and operations for aries-askar.
+//! Cryptography primitives and operations for Askar.
 
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]

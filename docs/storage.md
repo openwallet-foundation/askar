@@ -75,6 +75,7 @@ Though Aries Askar, via the [SQLx](https://github.com/launchbadge/sqlx) library,
 [pgBouncer](https://www.pgbouncer.org/) is a lightweight connection pooler for PostgreSQL databases. It acts as an intermediary between the application and the database, proficiently managing connections and alleviating the workload on the database server. By pooling connections and managing them efficiently, pgBouncer improves performance by mitigating connection overhead and resource consumption.
 
 To implement pgBouncer with Aries Askar, follow these steps:
+
 1. Install and configure pgBouncer as per the official documentation and your specific requirements.
 2. Update the application's database configuration to point to the pgBouncer endpoint.
 3. Monitor and fine-tune pgBouncer settings to optimize performance based on your workload demands.
@@ -84,10 +85,11 @@ To implement pgBouncer with Aries Askar, follow these steps:
 For users of Amazon Web Services (AWS), [RDS Proxy](https://aws.amazon.com/rds/proxy/) provides a managed database proxy service that enhances scalability, availability, and security of database connections. RDS Proxy efficiently manages database connections, transferring the burden of connection management from the database instance to the proxy service.
 
 To leverage AWS RDS Proxy in the Aries Askar project:
+
 1. Set up an RDS Proxy for your Postgres database using the AWS Management Console or AWS CLI. ([Using Amazon RDS Proxy](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.html))
 2. Update the application's database connection configuration to point to the RDS Proxy endpoint.
 3. Configure and fine-tune RDS Proxy settings based on your application's requirements and performance metrics.
 
 ### Case Study: AWS RDS Proxy Performance Improvement
 
-Refer to [hyperledger/aries-askar#195](https://github.com/hyperledger/aries-askar/issues/195) for in-depth insights and experiences on how AWS RDS Proxy contributed to enhancing database performance within the Aries Askar project. This issue contains valuable information, use cases, and considerations when implementing RDS Proxy.
+Refer to [openwallet-foundation/askar#195](https://github.com/openwallet-foundation/askar/issues/195) for in-depth insights and experiences on how AWS RDS Proxy contributed to enhancing database performance within the Aries Askar project. This issue contains valuable information, use cases, and considerations when implementing RDS Proxy.

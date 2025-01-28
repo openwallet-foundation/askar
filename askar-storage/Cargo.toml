@@ -3,12 +3,12 @@ name = "askar-storage"
 version = "0.2.2"
 authors = ["Hyperledger Aries Contributors <aries@lists.hyperledger.org>"]
 edition = "2021"
-description = "Hyperledger Aries Askar secure storage"
+description = "Askar secure storage support"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/hyperledger/aries-askar/"
+repository = "https://github.com/openwallet-foundation/askar/"
 categories = ["cryptography", "database"]
-keywords = ["hyperledger", "aries", "ssi", "verifiable", "credentials"]
+keywords = ["encryption", "signatures", "ssi", "verifiable", "credentials"]
 rust-version = "1.81"
 
 [package.metadata.docs.rs]

@@ -3,7 +3,7 @@
 [![Rust Crate](https://img.shields.io/crates/v/askar-crypto.svg)](https://crates.io/crates/askar-crypto)
 [![Rust Documentation](https://docs.rs/askar-crypto/badge.svg)](https://docs.rs/askar-crypto)
 
-The `askar-crypto` crate provides the basic key representations and cryptographic operations used by [`aries-askar`](https://github.com/hyperledger/aries-askar).
+The `askar-crypto` crate provides the basic key representations and cryptographic operations used by [`Askar`](https://github.com/openwallet-foundation/askar).
 
 ## Supported Key Types
 
@@ -37,7 +37,7 @@ This crate supports the optional `alloc` feature, gating types and operations th
 
 Licensed under either of
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](https://github.com/hyperledger/aries-askar/blob/main/LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](https://github.com/hyperledger/aries-askar/blob/main/LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](https://github.com/openwallet-foundation/askar/blob/main/LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](https://github.com/openwallet-foundation/askar/blob/main/LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.

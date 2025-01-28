@@ -27,7 +27,7 @@ if __name__ == "__main__":
         author_email="aries@lists.hyperledger.org",
         long_description=long_description,
         long_description_content_type="text/markdown",
-        url="https://github.com/hyperledger/aries-askar",
+        url="https://github.com/openwallet-foundation/askar",
         packages=find_packages(),
         install_requires=parse_requirements("requirements.txt"),
         tests_require=parse_requirements("requirements.dev.txt"),

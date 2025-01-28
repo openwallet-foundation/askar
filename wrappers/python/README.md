@@ -10,7 +10,7 @@ The initial implementation of `aries-askar` was developed by the Verifiable Orga
 
 ## Contributing
 
-Pull requests are welcome! Please read our [contributions guide](https://github.com/hyperledger/aries-askar/blob/master/CONTRIBUTING.md) and submit your PRs. We enforce [developer certificate of origin](https://developercertificate.org/) (DCO) commit signing. See guidance [here](https://github.com/apps/dco).
+Pull requests are welcome! Please read our [contributions guide](https://github.com/openwallet-foundation/askar/blob/master/CONTRIBUTING.md) and submit your PRs. We enforce [developer certificate of origin](https://developercertificate.org/) (DCO) commit signing. See guidance [here](https://github.com/apps/dco).
 
 We also welcome issues submitted about problems you encounter in using `aries-askar`.
 
@@ -18,7 +18,7 @@ We also welcome issues submitted about problems you encounter in using `aries-as
 
 Licensed under either of
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](https://github.com/hyperledger/aries-askar/blob/master/LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](https://github.com/hyperledger/aries-askar/blob/master/LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](https://github.com/openwallet-foundation/askar/blob/master/LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](https://github.com/openwallet-foundation/askar/blob/master/LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
