@@ -394,13 +394,13 @@ jobs:
 
       - name: Build
         run: |
-          # Using a fixed pre-release tag with a fix for NDK 25 support
-          cargo install --git https://github.com/cross-rs/cross.git --rev 085092c cross
-          # Required for compatibility with manylinux2014:
+          cargo install cross --git https://github.com/cross-rs/cross.git
+
           # https://github.com/briansmith/ring/issues/1728
           if [ "${{ matrix.target }}" = "aarch64-linux-android" ]; then
             export CFLAGS="-D__ARM_ARCH=8"
           fi
+
           cross build --lib --release --target ${{matrix.target}} --features ${{ env.FEATURES }}
 
       - name: Upload artifacts
