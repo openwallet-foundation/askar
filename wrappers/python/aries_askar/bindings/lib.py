@@ -8,6 +8,7 @@ import os
 import sys
 import threading
 import time
+from copy import deepcopy
 
 try:
     import orjson as json
@@ -59,12 +60,13 @@ def entry_cache(fn):
         cache = self._ecache
         ckey = (fn, index)
         if ckey in cache:
-            return cache[ckey]
-        res = fn(self, index)
-        cache[ckey] = res
+            res = cache[ckey]
+        else:
+            res = fn(self, index)
+            cache[ckey] = res
         if isinstance(res, dict):
             # make sure the cached copy is not mutated
-            res = dict(res)
+            res = deepcopy(res)
         return res
 
     return wrapper
