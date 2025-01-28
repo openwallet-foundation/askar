@@ -1,4 +1,4 @@
-//! Storage backends supported by aries-askar
+//! Storage backends supported by askar
 
 use std::fmt::Debug;
 

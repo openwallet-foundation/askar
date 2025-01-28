@@ -8,7 +8,7 @@ use super::{
     CallbackId, EnsureCallback,
 };
 
-/// Migrate an sqlite wallet from an indy-sdk structure to an aries-askar structure.
+/// Migrate an sqlite wallet from an indy-sdk structure to an Askar structure.
 /// It is important to note that this does not do any post-processing. If the record values, tags,
 /// names, etc. have changed, it must be processed manually afterwards. This script does the following:
 ///
@@ -28,7 +28,7 @@ pub extern "C" fn askar_migrate_indy_sdk(
     cb_id: CallbackId,
 ) -> ErrorCode {
     catch_err!(
-        trace!("Migrate sqlite wallet from indy-sdk structure to aries-askar");
+        trace!("Migrate sqlite wallet from indy-sdk structure to Askar");
         let cb = cb.ok_or_else(|| err_msg!("No callback provided"))?;
         let spec_uri = spec_uri.into_opt_string().ok_or_else(|| err_msg!("No provision spec URI provided"))?;
         let wallet_name = wallet_name.into_opt_string().ok_or_else(|| err_msg!("No wallet name provided"))?;
