@@ -384,7 +384,7 @@ ErrorCode askar_key_get_public_bytes(LocalKeyHandle handle, struct SecretBuffer 
 
 ErrorCode askar_key_get_secret_bytes(LocalKeyHandle handle, struct SecretBuffer *out);
 
-ErrorCode skar_key_get_supported_backends(StringListHandle *out);
+ErrorCode askar_key_get_supported_backends(StringListHandle *out);
 
 ErrorCode askar_key_sign_message(LocalKeyHandle handle,
                                  struct ByteBuffer message,
@@ -440,6 +440,8 @@ ErrorCode askar_scan_start(StoreHandle handle,
                            FfiStr tag_filter,
                            int64_t offset,
                            int64_t limit,
+                           FfiStr order_by,
+                           int8_t descending,
                            void (*cb)(CallbackId cb_id, ErrorCode err, ScanHandle handle),
                            CallbackId cb_id);
 
@@ -465,6 +467,8 @@ ErrorCode askar_session_fetch_all(SessionHandle handle,
                                   FfiStr category,
                                   FfiStr tag_filter,
                                   int64_t limit,
+                                  FfiStr order_by,
+                                  int8_t descending,
                                   int8_t for_update,
                                   void (*cb)(CallbackId cb_id,
                                              ErrorCode err,
@@ -627,5 +631,5 @@ void askar_terminate(void);
 char *askar_version(void);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
