@@ -18,7 +18,7 @@ from ctypes import (
     c_void_p,
 )
 
-from .lib import ByteBuffer, Lib, StrBuffer, finalize_struct
+from .lib import ByteBuffer, Lib, StrBuffer, entry_cache, finalize_struct
 
 
 LOGGER = logging.getLogger(__name__)
@@ -124,6 +124,7 @@ class EntryListHandle(ArcHandle):
 
     _dtor_ = "askar_entry_list_free"
 
+    @entry_cache
     def get_category(self, index: int) -> str:
         """Get the entry category."""
         cat = StrBuffer()
@@ -136,6 +137,7 @@ class EntryListHandle(ArcHandle):
         )
         return str(cat)
 
+    @entry_cache
     def get_name(self, index: int) -> str:
         """Get the entry name."""
         name = StrBuffer()
@@ -148,6 +150,7 @@ class EntryListHandle(ArcHandle):
         )
         return str(name)
 
+    @entry_cache
     def get_value(self, index: int) -> memoryview:
         """Get the entry value."""
         val = ByteBuffer()
@@ -160,6 +163,7 @@ class EntryListHandle(ArcHandle):
         )
         return val.view
 
+    @entry_cache
     def get_tags(self, index: int) -> dict:
         """Get the entry tags."""
         tags = StrBuffer()
@@ -185,6 +189,7 @@ class KeyEntryListHandle(ArcHandle):
 
     _dtor_ = "askar_key_entry_list_free"
 
+    @entry_cache
     def get_algorithm(self, index: int) -> str:
         """Get the key algorithm."""
         name = StrBuffer()
@@ -197,6 +202,7 @@ class KeyEntryListHandle(ArcHandle):
         )
         return str(name)
 
+    @entry_cache
     def get_name(self, index: int) -> str:
         """Get the key name."""
         name = StrBuffer()
@@ -209,6 +215,7 @@ class KeyEntryListHandle(ArcHandle):
         )
         return str(name)
 
+    @entry_cache
     def get_metadata(self, index: int) -> str:
         """Get for the key metadata."""
         metadata = StrBuffer()
@@ -221,6 +228,7 @@ class KeyEntryListHandle(ArcHandle):
         )
         return str(metadata)
 
+    @entry_cache
     def get_tags(self, index: int) -> dict:
         """Get the key tags."""
         tags = StrBuffer()

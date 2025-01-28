@@ -5,7 +5,6 @@ try:
 except ImportError:
     import json
 
-from functools import lru_cache
 from typing import Optional, Sequence, Union
 
 from . import bindings
@@ -32,25 +31,21 @@ class Entry:
         self._pos = pos
 
     @property
-    @lru_cache(maxsize=None)
     def category(self) -> str:
         """Accessor for the entry category."""
         return self._list.get_category(self._pos)
 
     @property
-    @lru_cache(maxsize=None)
     def name(self) -> str:
         """Accessor for the entry name."""
         return self._list.get_name(self._pos)
 
     @property
-    @lru_cache(maxsize=None)
     def value(self) -> bytes:
         """Accessor for the entry value."""
         return bytes(self.raw_value)
 
     @property
-    @lru_cache(maxsize=None)
     def raw_value(self) -> memoryview:
         """Accessor for the entry raw value."""
         return self._list.get_value(self._pos)
@@ -61,7 +56,6 @@ class Entry:
         return json.loads(self.value)
 
     @property
-    @lru_cache(maxsize=None)
     def tags(self) -> dict:
         """Accessor for the entry tags."""
         return self._list.get_tags(self._pos)
@@ -152,31 +146,26 @@ class KeyEntry:
         self._pos = pos
 
     @property
-    @lru_cache(maxsize=None)
     def algorithm(self) -> str:
         """Accessor for the key entry algorithm."""
         return self._list.get_algorithm(self._pos)
 
     @property
-    @lru_cache(maxsize=None)
     def name(self) -> str:
         """Accessor for the key entry name."""
         return self._list.get_name(self._pos)
 
     @property
-    @lru_cache(maxsize=None)
     def metadata(self) -> str:
         """Accessor for the key entry metadata."""
         return self._list.get_metadata(self._pos)
 
     @property
-    @lru_cache(maxsize=None)
     def key(self) -> Key:
-        """Accessor for the entry metadata."""
+        """Accessor for the key instance."""
         return Key(self._list.load_key(self._pos))
 
     @property
-    @lru_cache(maxsize=None)
     def tags(self) -> dict:
         """Accessor for the entry tags."""
         return self._list.get_tags(self._pos)

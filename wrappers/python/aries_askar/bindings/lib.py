@@ -1,6 +1,7 @@
 """Library instance and allocated buffer handling."""
 
 import asyncio
+import functools
 import itertools
 import logging
 import os
@@ -46,6 +47,27 @@ LOG_LEVELS = {
     3: logging.INFO,
     4: logging.DEBUG,
 }
+
+
+def entry_cache(fn):
+    """Cache results for properties of individual entries."""
+
+    @functools.wraps(fn)
+    def wrapper(self, index: int):
+        if not hasattr(self, "_ecache"):
+            setattr(self, "_ecache", {})
+        cache = self._ecache
+        ckey = (fn, index)
+        if ckey in cache:
+            return cache[ckey]
+        res = fn(self, index)
+        cache[ckey] = res
+        if isinstance(res, dict):
+            # make sure the cached copy is not mutated
+            res = dict(res)
+        return res
+
+    return wrapper
 
 
 def _convert_log_level(level: Union[str, int, None]):
