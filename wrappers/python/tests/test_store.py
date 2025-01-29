@@ -1,5 +1,7 @@
 import asyncio
+import gc
 import os
+from weakref import WeakKeyDictionary
 
 from pytest import mark, raises
 import pytest_asyncio
@@ -10,6 +12,7 @@ from aries_askar import (
     Key,
     Store,
 )
+from aries_askar.bindings.lib import entry_cache
 
 
 TEST_STORE_URI = os.getenv("TEST_STORE_URI", "sqlite://:memory:")
@@ -26,7 +29,6 @@ def raw_key() -> str:
 
 
 @pytest_asyncio.fixture
-@mark.asyncio
 async def store() -> Store:
     key = raw_key()
     store = await Store.provision(TEST_STORE_URI, "raw", key, recreate=True)
@@ -34,7 +36,6 @@ async def store() -> Store:
     await store.close(remove=True)
 
 
-@mark.asyncio
 async def test_insert_update(store: Store):
     async with store as session:
         # Insert a new entry
@@ -81,7 +82,6 @@ async def test_insert_update(store: Store):
         assert found is None
 
 
-@mark.asyncio
 async def test_remove_all(store: Store):
     async with store as session:
         # Insert a new entry
@@ -104,7 +104,6 @@ async def test_remove_all(store: Store):
         assert found is None
 
 
-@mark.asyncio
 async def test_scan(store: Store):
     async with store as session:
         await session.insert(
@@ -133,7 +132,6 @@ async def test_scan(store: Store):
     assert len(rows) == 1 and dict(rows[0]) == TEST_ENTRY
 
 
-@mark.asyncio
 async def test_txn_basic(store: Store):
     async with store.transaction() as txn:
         # Insert a new entry
@@ -167,7 +165,6 @@ async def test_txn_basic(store: Store):
         assert dict(found) == TEST_ENTRY
 
 
-@mark.asyncio
 async def test_txn_autocommit(store: Store):
     with raises(Exception):
         async with store.transaction(autocommit=True) as txn:
@@ -203,7 +200,6 @@ async def test_txn_autocommit(store: Store):
         assert dict(found) == TEST_ENTRY
 
 
-@mark.asyncio
 async def test_txn_contention(store: Store):
     async with store.transaction() as txn:
         await txn.insert(
@@ -240,7 +236,6 @@ async def test_txn_contention(store: Store):
         assert int(result.value) == INC_COUNT * TASKS
 
 
-@mark.asyncio
 async def test_key_store_ed25519(store: Store):
     # test key operations in a new session
     async with store as session:
@@ -279,7 +274,6 @@ async def test_key_store_ed25519(store: Store):
         assert await session.fetch_key(key_name) is None
 
 
-@mark.asyncio
 @mark.parametrize(
     "key_alg",
     [KeyAlg.A128CBC_HS256, KeyAlg.XC20P],
@@ -318,7 +312,6 @@ async def test_key_store_symmetric(store: Store, key_alg: KeyAlg):
         assert await session.fetch_key(key_name) is None
 
 
-@mark.asyncio
 async def test_profile(store: Store):
     # New session in the default profile
     async with store as session:
@@ -409,7 +402,6 @@ async def test_profile(store: Store):
     assert (await store.get_default_profile()) == profile
 
 
-@mark.asyncio
 async def test_copy(store: Store):
     async with store as session:
         # Insert a new entry
@@ -429,3 +421,54 @@ async def test_copy(store: Store):
         entries = await session.fetch_all(TEST_ENTRY["category"])
         assert len(entries) == 1
         assert entries[0].name == TEST_ENTRY["name"]
+
+
+def test_entry_cache():
+    instances = WeakKeyDictionary()
+
+    class MockList:
+        def __init__(self, name: str, value: dict):
+            self._name = name
+            self._value = value
+            self._calls = []
+            instances[self] = True
+
+        @entry_cache
+        def get_name(self, index: int) -> str:
+            self._calls.append(index)
+            return self._name + str(index)
+
+        @entry_cache
+        def get_value(self, index: int) -> dict:
+            self._calls.append(index)
+            return self._value
+
+    NAME = "testname"
+    VALUE = {"a": "b"}
+    lst = MockList(NAME, VALUE)
+    # check instance is registered
+    assert instances
+
+    # check first call goes to method
+    assert lst.get_name(99) == NAME + "99"
+    assert lst._calls == [99]
+    assert lst.get_name(45) == NAME + "45"
+    assert lst._calls == [99, 45]
+    val = lst.get_value(11)
+    assert val == VALUE
+    assert lst._calls == [99, 45, 11]
+
+    # check dict value is copied
+    val["a"] = "c"
+    assert val != VALUE
+
+    # check second call goes to cache
+    assert lst.get_name(99) == NAME + "99"
+    assert lst.get_name(45) == NAME + "45"
+    assert lst.get_value(11) == VALUE
+    assert lst._calls == [99, 45, 11]
+
+    # ensure no extra references are keeping the instance around
+    del lst
+    gc.collect()
+    assert not instances
