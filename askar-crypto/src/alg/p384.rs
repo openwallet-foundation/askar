@@ -4,7 +4,10 @@ use core::convert::TryFrom;
 
 use p384::{
     ecdsa::{
-        signature::{Signer, Verifier},
+        signature::{
+            hazmat::{PrehashSigner, PrehashVerifier},
+            Signer, Verifier,
+        },
         Signature, SigningKey, VerifyingKey,
     },
     elliptic_curve::{
@@ -94,11 +97,33 @@ impl P384KeyPair {
         }
     }
 
-    /// Verify a signature with the public key
+    /// Sign a pre-hashed message with the secret key
+    pub fn sign_prehashed(&self, hashed_message: &[u8]) -> Option<[u8; ES384_SIGNATURE_LENGTH]> {
+        if let Some(skey) = self.to_signing_key() {
+            if let Ok(sig) = PrehashSigner::<Signature>::sign_prehash(&skey, hashed_message) {
+                let mut sigb = [0u8; 96];
+                sigb.copy_from_slice(&sig.to_bytes());
+                return Some(sigb);
+            }
+        }
+        None
+    }
+
+    /// Verify a signature against the public key
     pub fn verify_signature(&self, message: &[u8], signature: &[u8]) -> bool {
         if let Ok(sig) = Signature::try_from(signature) {
             let vk = VerifyingKey::from(&self.public);
             vk.verify(message, &sig).is_ok()
+        } else {
+            false
+        }
+    }
+
+    /// Verify a signature on a prehashed message against the public key
+    pub fn verify_signature_prehashed(&self, hashed_message: &[u8], signature: &[u8]) -> bool {
+        if let Ok(sig) = Signature::try_from(signature) {
+            let vk = VerifyingKey::from(&self.public);
+            vk.verify_prehash(hashed_message, &sig).is_ok()
         } else {
             false
         }
@@ -210,6 +235,14 @@ impl KeySign for P384KeyPair {
                     Err(err_msg!(Unsupported, "Undefined secret key"))
                 }
             }
+            Some(SignatureType::ES384ph) => {
+                if let Some(sig) = self.sign_prehashed(message) {
+                    out.buffer_write(&sig[..])?;
+                    Ok(())
+                } else {
+                    Err(err_msg!(Unsupported, "Signing operation not supported"))
+                }
+            }
             #[allow(unreachable_patterns)]
             _ => Err(err_msg!(Unsupported, "Unsupported signature type")),
         }
@@ -225,6 +258,7 @@ impl KeySigVerify for P384KeyPair {
     ) -> Result<bool, Error> {
         match sig_type {
             None | Some(SignatureType::ES384) => Ok(self.verify_signature(message, signature)),
+            Some(SignatureType::ES384ph) => Ok(self.verify_signature_prehashed(message, signature)),
             #[allow(unreachable_patterns)]
             _ => Err(err_msg!(Unsupported, "Unsupported signature type")),
         }
@@ -326,6 +360,7 @@ impl KeyExchange for P384KeyPair {
 #[cfg(test)]
 mod tests {
     use base64::Engine;
+    use sha2::Digest;
 
     use super::*;
     use crate::repr::ToPublicBytes;
@@ -406,6 +441,24 @@ mod tests {
         assert!(kp.verify_signature(&test_msg[..], &sig[..]));
         assert!(!kp.verify_signature(b"Not the message", &sig[..]));
         assert!(!kp.verify_signature(&test_msg[..], &[0u8; 96]));
+    }
+
+    #[test]
+    fn sign_verify_expected_prehash() {
+        let test_msg = sha2::Sha384::digest(b"This is a dummy message for use with tests");
+        let test_sig = &hex!(
+            "acf7e9f0975738d446b26aa1651ad699cac490a496d6f70221126c35d8e4fcc5a28f63f611557be9d4c321d8fa24dbf2
+             846e3bcbea2e45eff577974664b1e98fffdad8ddbe7bfa792c17a9981915aa63755cfd338fd28874de02c42d966ece67"
+        );
+        let test_pvt = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode("rgFYq-b_toGb-wN3URCk_e-6Sj2PtUvoefF284q9oKnVCi7sglAmCZkOv-2nOAeE")
+            .unwrap();
+        let kp = P384KeyPair::from_secret_bytes(&test_pvt).unwrap();
+        let sig = kp.sign_prehashed(&test_msg[..]).unwrap();
+        assert_eq!(sig, &test_sig[..]);
+        assert!(kp.verify_signature_prehashed(&test_msg[..], &sig[..]));
+        assert!(!kp.verify_signature_prehashed(b"Not the message", &sig[..]));
+        assert!(!kp.verify_signature_prehashed(&test_msg[..], &[0u8; 96]));
     }
 
     #[test]

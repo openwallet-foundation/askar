@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, ffi::CString, os::raw::c_char, ptr, str::FromStr, sync::Arc};
 
-use askar_storage::backend::{copy_profile, OrderBy};
+use askar_storage::backend::OrderBy;
 use async_lock::{Mutex as TryMutex, MutexGuardArc as TryMutexGuard, RwLock};
 use ffi_support::{rust_string_to_c, ByteBuffer, FfiStr};
 use once_cell::sync::Lazy;
@@ -555,7 +555,7 @@ pub extern "C" fn askar_store_copy_profile(
             let result = async move {
                 let from_store = from_handle.load().await?;
                 let to_store = to_handle.load().await?;
-                copy_profile(from_store.backend(), to_store.backend(), &from_profile, &to_profile).await?;
+                from_store.copy_profile_to(&to_store, &from_profile, &to_profile).await?;
                 debug!("Copied profile {}/{} to {}/{}", from_handle, from_profile, to_handle, to_profile);
                 Ok(())
             }.await;

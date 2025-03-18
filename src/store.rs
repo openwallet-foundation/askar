@@ -22,10 +22,6 @@ impl Store {
         Self(inner)
     }
 
-    pub(crate) fn backend(&self) -> &AnyBackend {
-        &self.0
-    }
-
     /// Provision a new store instance using a database URL
     pub async fn provision(
         db_url: &str,
@@ -102,6 +98,17 @@ impl Store {
             copy_profile(&self.0, &target, &profile, &profile).await?;
         }
         Ok(Self::new(target))
+    }
+
+    /// Copy to a new store instance using a database URL
+    pub async fn copy_profile_to(
+        &self,
+        target: &Store,
+        from_name: &str,
+        to_name: &str,
+    ) -> Result<(), Error> {
+        copy_profile(&self.0, &target.0, from_name, to_name).await?;
+        Ok(())
     }
 
     /// Create a new profile with the given profile name
