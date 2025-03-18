@@ -4,7 +4,10 @@ use core::convert::TryFrom;
 
 use p256::{
     ecdsa::{
-        signature::{Signer, Verifier},
+        signature::{
+            hazmat::{PrehashSigner, PrehashVerifier},
+            Signer, Verifier,
+        },
         Signature, SigningKey, VerifyingKey,
     },
     elliptic_curve::{
@@ -94,11 +97,32 @@ impl P256KeyPair {
         }
     }
 
-    /// Verify a signature with the public key
+    /// Sign a pre-hashed message with the secret key
+    pub fn sign_prehashed(&self, hashed_message: &[u8]) -> Option<[u8; ES256_SIGNATURE_LENGTH]> {
+        if let Some(skey) = self.to_signing_key() {
+            if let Ok(sig) = PrehashSigner::<Signature>::sign_prehash(&skey, hashed_message) {
+                let sigb: [u8; 64] = sig.to_bytes().into();
+                return Some(sigb);
+            }
+        }
+        None
+    }
+
+    /// Verify a signature against the public key
     pub fn verify_signature(&self, message: &[u8], signature: &[u8]) -> bool {
         if let Ok(sig) = Signature::try_from(signature) {
             let vk = VerifyingKey::from(&self.public);
             vk.verify(message, &sig).is_ok()
+        } else {
+            false
+        }
+    }
+
+    /// Verify a signature on a prehashed message against the public key
+    pub fn verify_signature_prehashed(&self, hashed_message: &[u8], signature: &[u8]) -> bool {
+        if let Ok(sig) = Signature::try_from(signature) {
+            let vk = VerifyingKey::from(&self.public);
+            vk.verify_prehash(hashed_message, &sig).is_ok()
         } else {
             false
         }
@@ -210,6 +234,14 @@ impl KeySign for P256KeyPair {
                     Err(err_msg!(Unsupported, "Undefined secret key"))
                 }
             }
+            Some(SignatureType::ES256ph) => {
+                if let Some(sig) = self.sign_prehashed(message) {
+                    out.buffer_write(&sig[..])?;
+                    Ok(())
+                } else {
+                    Err(err_msg!(Unsupported, "Signing operation not supported"))
+                }
+            }
             #[allow(unreachable_patterns)]
             _ => Err(err_msg!(Unsupported, "Unsupported signature type")),
         }
@@ -225,6 +257,7 @@ impl KeySigVerify for P256KeyPair {
     ) -> Result<bool, Error> {
         match sig_type {
             None | Some(SignatureType::ES256) => Ok(self.verify_signature(message, signature)),
+            Some(SignatureType::ES256ph) => Ok(self.verify_signature_prehashed(message, signature)),
             #[allow(unreachable_patterns)]
             _ => Err(err_msg!(Unsupported, "Unsupported signature type")),
         }
@@ -326,6 +359,7 @@ impl KeyExchange for P256KeyPair {
 #[cfg(test)]
 mod tests {
     use base64::Engine;
+    use sha2::Digest;
 
     use super::*;
     use crate::repr::ToPublicBytes;
@@ -406,6 +440,24 @@ mod tests {
         assert!(kp.verify_signature(&test_msg[..], &sig[..]));
         assert!(!kp.verify_signature(b"Not the message", &sig[..]));
         assert!(!kp.verify_signature(&test_msg[..], &[0u8; 64]));
+    }
+
+    #[test]
+    fn sign_verify_expected_prehash() {
+        let test_msg = sha2::Sha384::digest(b"This is a dummy message for use with tests");
+        let test_sig = &hex!(
+            "a3c0cbc5614ee2c5c1b0cb7302eb9f8d2ab4296ad0e699aa13ec7dc8ff1aca06
+            9075df4336f072547fec3beea6003f3d55bef11c0ee5dba1da091606dfc796f9"
+        );
+        let test_pvt = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode("jpsQnnGQmL-YBIffH1136cspYG6-0iY7X1fCE9-E9LI")
+            .unwrap();
+        let kp = P256KeyPair::from_secret_bytes(&test_pvt).unwrap();
+        let sig = kp.sign_prehashed(&test_msg[..]).unwrap();
+        assert_eq!(sig, &test_sig[..]);
+        assert!(kp.verify_signature_prehashed(&test_msg[..], &sig[..]));
+        assert!(!kp.verify_signature_prehashed(b"Not the message", &sig[..]));
+        assert!(!kp.verify_signature_prehashed(&test_msg[..], &[0u8; 64]));
     }
 
     #[test]

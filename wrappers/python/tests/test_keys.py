@@ -1,6 +1,6 @@
 import json
+import hashlib
 
-from aries_askar.types import KeyBackend
 import pytest
 
 from aries_askar import (
@@ -8,6 +8,7 @@ from aries_askar import (
     Key,
     SeedMethod,
 )
+from aries_askar.types import KeyBackend
 
 
 def test_get_supported_backends():
@@ -106,3 +107,10 @@ def test_ec_curves(key_alg: KeyAlg):
     assert jwk["x"]
     assert jwk["y"]
     assert jwk["d"]
+
+
+def test_sign_prehashed():
+    key = Key.generate("p256")
+    message = hashlib.sha384(b"test message").digest()
+    sig = key.sign_message(message, "es256ph")
+    assert key.verify_signature(message, sig, "es256ph")
