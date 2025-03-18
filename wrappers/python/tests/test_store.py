@@ -423,6 +423,33 @@ async def test_copy(store: Store):
         assert entries[0].name == TEST_ENTRY["name"]
 
 
+async def test_copy_profile(store: Store):
+    async with store as session:
+        # Insert a new entry
+        await session.insert(
+            TEST_ENTRY["category"],
+            TEST_ENTRY["name"],
+            TEST_ENTRY["value"],
+            TEST_ENTRY["tags"],
+        )
+    profiles = await store.list_profiles()
+
+    target = await Store.provision("sqlite://:memory:", "raw", raw_key())
+    await store.copy_profile_to(target, profiles[0])
+
+    async with target.session(profiles[0]) as session:
+        entries = await session.fetch_all(TEST_ENTRY["category"])
+        assert len(entries) == 1
+        assert entries[0].name == TEST_ENTRY["name"]
+    await target.close()
+
+    await store.copy_profile_to(store, profiles[0], "test")
+    async with store.session("test") as session:
+        entries = await session.fetch_all(TEST_ENTRY["category"])
+        assert len(entries) == 1
+        assert entries[0].name == TEST_ENTRY["name"]
+
+
 def test_entry_cache():
     instances = WeakKeyDictionary()
 

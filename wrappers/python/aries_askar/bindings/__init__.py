@@ -246,6 +246,23 @@ async def store_copy(
     )
 
 
+async def store_copy_profile(
+    from_handle: StoreHandle,
+    to_handle: StoreHandle,
+    from_profile: str,
+    to_profile: Optional[str] = None,
+):
+    """Copy a profile from one Store instance to another."""
+    await invoke_async(
+        "askar_store_copy_profile",
+        (StoreHandle, StoreHandle, FfiStr, FfiStr),
+        from_handle,
+        to_handle,
+        from_profile,
+        to_profile,
+    )
+
+
 async def store_remove(uri: str) -> bool:
     """Remove an existing Store, if any."""
     return (

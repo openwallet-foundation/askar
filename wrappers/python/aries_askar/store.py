@@ -449,6 +449,17 @@ class Store:
             target_uri,
         )
 
+    async def copy_profile_to(
+        self,
+        to_store: "Store",
+        from_profile: str,
+        to_profile: Optional[str] = None,
+    ):
+        """Copy a profile from this Store instance to another Store."""
+        await bindings.store_copy_profile(
+            self._handle, to_store._handle, from_profile, to_profile
+        )
+
     def scan(
         self,
         category: str = None,

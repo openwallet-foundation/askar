@@ -22,6 +22,10 @@ impl Store {
         Self(inner)
     }
 
+    pub(crate) fn backend(&self) -> &AnyBackend {
+        &self.0
+    }
+
     /// Provision a new store instance using a database URL
     pub async fn provision(
         db_url: &str,
