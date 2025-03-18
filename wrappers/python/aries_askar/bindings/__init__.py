@@ -180,6 +180,23 @@ async def store_remove_profile(handle: StoreHandle, name: str) -> bool:
     )
 
 
+async def store_rename_profile(
+    handle: StoreHandle, from_name: str, to_name: str
+) -> bool:
+    """Change the name of an existing profile in a Store."""
+    return (
+        await invoke_async(
+            "askar_store_rename_profile",
+            (StoreHandle, FfiStr, FfiStr),
+            handle,
+            from_name,
+            to_name,
+            return_type=c_int8,
+        )
+        == 1
+    )
+
+
 async def store_list_profiles(handle: StoreHandle) -> Sequence[str]:
     """List the profile identifiers present in a Store."""
     handle = await invoke_async(
@@ -243,6 +260,23 @@ async def store_copy(
         pass_key,
         recreate,
         return_type=StoreHandle,
+    )
+
+
+async def store_copy_profile(
+    from_handle: StoreHandle,
+    to_handle: StoreHandle,
+    from_profile: str,
+    to_profile: Optional[str] = None,
+):
+    """Copy a profile from one Store instance to another."""
+    await invoke_async(
+        "askar_store_copy_profile",
+        (StoreHandle, StoreHandle, FfiStr, FfiStr),
+        from_handle,
+        to_handle,
+        from_profile,
+        to_profile,
     )
 
 

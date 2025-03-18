@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, ffi::CString, os::raw::c_char, ptr, str::FromStr, sync::Arc};
 
-use askar_storage::backend::OrderBy;
+use askar_storage::backend::{copy_profile, OrderBy};
 use async_lock::{Mutex as TryMutex, MutexGuardArc as TryMutexGuard, RwLock};
 use ffi_support::{rust_string_to_c, ByteBuffer, FfiStr};
 use once_cell::sync::Lazy;
@@ -429,6 +429,36 @@ pub extern "C" fn askar_store_set_default_profile(
 }
 
 #[no_mangle]
+pub extern "C" fn askar_store_rename_profile(
+    handle: StoreHandle,
+    from_profile: FfiStr<'_>,
+    to_profile: FfiStr<'_>,
+    cb: Option<extern "C" fn(cb_id: CallbackId, err: ErrorCode, renamed: i8)>,
+    cb_id: CallbackId,
+) -> ErrorCode {
+    catch_err! {
+        trace!("Rename profile");
+        let cb = cb.ok_or_else(|| err_msg!("No callback provided"))?;
+        let from_profile = from_profile.into_opt_string().ok_or_else(|| err_msg!("Old profile name not provided"))?;
+        let to_profile = to_profile.into_opt_string().ok_or_else(|| err_msg!("New profile name not provided"))?;
+        let cb = EnsureCallback::new(move |result|
+            match result {
+                Ok(renamed) => cb(cb_id, ErrorCode::Success, renamed as i8),
+                Err(err) => cb(cb_id, set_last_error(Some(err)), 0),
+            }
+        );
+        spawn_ok(async move {
+            let result = async {
+                let store = handle.load().await?;
+                store.rename_profile(from_profile, to_profile).await
+            }.await;
+            cb.resolve(result);
+        });
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn askar_store_rekey(
     handle: StoreHandle,
     key_method: FfiStr<'_>,
@@ -494,6 +524,40 @@ pub extern "C" fn askar_store_copy(
                 let copied = store.copy_to(target_uri.as_str(), key_method, pass_key.as_ref(), recreate != 0).await?;
                 debug!("Copied store {}", handle);
                 Ok(StoreHandle::create(copied).await)
+            }.await;
+            cb.resolve(result);
+        });
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_store_copy_profile(
+    from_handle: StoreHandle,
+    to_handle: StoreHandle,
+    from_profile: FfiStr<'_>,
+    to_profile: FfiStr<'_>,
+    cb: Option<extern "C" fn(cb_id: CallbackId, err: ErrorCode)>,
+    cb_id: CallbackId,
+) -> ErrorCode {
+    catch_err! {
+        trace!("Copy profile");
+        let cb = cb.ok_or_else(|| err_msg!("No callback provided"))?;
+        let from_profile = from_profile.into_opt_string().ok_or_else(|| err_msg!("Profile name not provided"))?;
+        let to_profile = to_profile.into_opt_string().unwrap_or_else(|| from_profile.clone());
+        let cb = EnsureCallback::new(move |result|
+            match result {
+                Ok(()) => cb(cb_id, ErrorCode::Success),
+                Err(err) => cb(cb_id, set_last_error(Some(err))),
+            }
+        );
+        spawn_ok(async move {
+            let result = async move {
+                let from_store = from_handle.load().await?;
+                let to_store = to_handle.load().await?;
+                copy_profile(from_store.backend(), to_store.backend(), &from_profile, &to_profile).await?;
+                debug!("Copied profile {}/{} to {}/{}", from_handle, from_profile, to_handle, to_profile);
+                Ok(())
             }.await;
             cb.resolve(result);
         });

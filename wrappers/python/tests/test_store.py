@@ -1,6 +1,7 @@
 import asyncio
 import gc
 import os
+from typing import AsyncGenerator
 from weakref import WeakKeyDictionary
 
 from pytest import mark, raises
@@ -29,7 +30,7 @@ def raw_key() -> str:
 
 
 @pytest_asyncio.fixture
-async def store() -> Store:
+async def store() -> AsyncGenerator[Store, None]:
     key = raw_key()
     store = await Store.provision(TEST_STORE_URI, "raw", key, recreate=True)
     yield store
@@ -379,7 +380,7 @@ async def test_profile(store: Store):
     assert set(await store.list_profiles()) == {active_profile}
 
     # opening removed profile should fail
-    with raises(AskarError, match="removed"):
+    with raises(AskarError, match="not found"):
         async with store.session(profile) as session:
             pass
 
@@ -401,6 +402,13 @@ async def test_profile(store: Store):
     await store.set_default_profile(profile)
     assert (await store.get_default_profile()) == profile
 
+    await store.rename_profile(profile, "test-profile")
+    async with store.session("test-profile") as session:
+        pass
+    with raises(AskarError, match="not found"):
+        async with store.session(profile) as session:
+            pass
+
 
 async def test_copy(store: Store):
     async with store as session:
@@ -418,6 +426,33 @@ async def test_copy(store: Store):
     await copied.close(remove=True)
 
     async with store as session:
+        entries = await session.fetch_all(TEST_ENTRY["category"])
+        assert len(entries) == 1
+        assert entries[0].name == TEST_ENTRY["name"]
+
+
+async def test_copy_profile(store: Store):
+    async with store as session:
+        # Insert a new entry
+        await session.insert(
+            TEST_ENTRY["category"],
+            TEST_ENTRY["name"],
+            TEST_ENTRY["value"],
+            TEST_ENTRY["tags"],
+        )
+    profiles = await store.list_profiles()
+
+    target = await Store.provision("sqlite://:memory:", "raw", raw_key())
+    await store.copy_profile_to(target, profiles[0])
+
+    async with target.session(profiles[0]) as session:
+        entries = await session.fetch_all(TEST_ENTRY["category"])
+        assert len(entries) == 1
+        assert entries[0].name == TEST_ENTRY["name"]
+    await target.close()
+
+    await store.copy_profile_to(store, profiles[0], "test")
+    async with store.session("test") as session:
         entries = await session.fetch_all(TEST_ENTRY["category"])
         assert len(entries) == 1
         assert entries[0].name == TEST_ENTRY["name"]

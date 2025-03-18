@@ -65,6 +65,15 @@ impl<B: Backend> Backend for WrapBackend<B> {
     }
 
     #[inline]
+    fn rename_profile(
+        &self,
+        from_name: String,
+        to_name: String,
+    ) -> BoxFuture<'_, Result<bool, Error>> {
+        self.0.rename_profile(from_name, to_name)
+    }
+
+    #[inline]
     fn scan(
         &self,
         profile: Option<String>,
@@ -135,6 +144,15 @@ impl Backend for AnyBackend {
     #[inline]
     fn remove_profile(&self, name: String) -> BoxFuture<'_, Result<bool, Error>> {
         self.0.remove_profile(name)
+    }
+
+    #[inline]
+    fn rename_profile(
+        &self,
+        from_name: String,
+        to_name: String,
+    ) -> BoxFuture<'_, Result<bool, Error>> {
+        self.0.rename_profile(from_name, to_name)
     }
 
     #[inline]

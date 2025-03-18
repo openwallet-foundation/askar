@@ -425,6 +425,11 @@ class Store:
         """List the profile identifiers present in the store."""
         return await bindings.store_list_profiles(self._handle)
 
+    async def rename_profile(self, from_name: str, to_name: str):
+        """Remove a profile from the store."""
+        if not await bindings.store_rename_profile(self._handle, from_name, to_name):
+            raise AskarError(AskarErrorCode.WRAPPER, "Profile renaming failed")
+
     async def rekey(
         self,
         key_method: str = None,
@@ -447,6 +452,17 @@ class Store:
                 self._handle, target_uri, key_method, pass_key, recreate
             ),
             target_uri,
+        )
+
+    async def copy_profile_to(
+        self,
+        to_store: "Store",
+        from_profile: str,
+        to_profile: Optional[str] = None,
+    ):
+        """Copy a profile from this Store instance to another Store."""
+        await bindings.store_copy_profile(
+            self._handle, to_store._handle, from_profile, to_profile
         )
 
     def scan(

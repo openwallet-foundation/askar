@@ -22,6 +22,10 @@ impl Store {
         Self(inner)
     }
 
+    pub(crate) fn backend(&self) -> &AnyBackend {
+        &self.0
+    }
+
     /// Provision a new store instance using a database URL
     pub async fn provision(
         db_url: &str,
@@ -115,6 +119,14 @@ impl Store {
         Ok(self.0.remove_profile(name).await?)
     }
 
+    /// Change the name of an existing profile
+    pub async fn rename_profile(
+        &self,
+        from_profile: String,
+        to_profile: String,
+    ) -> Result<bool, Error> {
+        Ok(self.0.rename_profile(from_profile, to_profile).await?)
+    }
     /// Create a new scan instance against the store
     ///
     /// The result will keep an open connection to the backend until it is consumed

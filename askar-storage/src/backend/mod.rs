@@ -53,6 +53,13 @@ pub trait Backend: Debug + Send + Sync {
     /// Remove an existing profile
     fn remove_profile(&self, name: String) -> BoxFuture<'_, Result<bool, Error>>;
 
+    /// Change the name of an existing profile
+    fn rename_profile(
+        &self,
+        from_name: String,
+        to_name: String,
+    ) -> BoxFuture<'_, Result<bool, Error>>;
+
     /// Create a [`Scan`] against the store
     #[allow(clippy::too_many_arguments)]
     fn scan(

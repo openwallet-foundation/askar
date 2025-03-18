@@ -335,8 +335,8 @@ impl<'a> ManageBackend<'a> for PostgresStoreOptions {
     }
 }
 
-pub(crate) async fn init_db<'t>(
-    mut txn: Transaction<'t, Postgres>,
+pub(crate) async fn init_db(
+    mut txn: Transaction<'_, Postgres>,
     profile_name: &str,
     store_key_ref: String,
     enc_profile_key: Vec<u8>,
