@@ -203,6 +203,28 @@ impl Backend for PostgresBackend {
                 .rows_affected()
                 != 0;
             conn.return_to_pool().await;
+            self.key_cache.clear_profile(&name).await;
+            Ok(ret)
+        })
+    }
+
+    fn rename_profile(
+        &self,
+        from_name: String,
+        to_name: String,
+    ) -> BoxFuture<'_, Result<bool, Error>> {
+        Box::pin(async move {
+            let mut conn = self.conn_pool.acquire().await?;
+            let ret = sqlx::query("UPDATE profiles SET name=$1 WHERE name=$2")
+                .bind(&to_name)
+                .bind(&from_name)
+                .execute(conn.as_mut())
+                .await
+                .map_err(err_map!(Backend, "Error renaming profile"))?
+                .rows_affected()
+                != 0;
+            conn.return_to_pool().await;
+            self.key_cache.clear_profile(&from_name).await;
             Ok(ret)
         })
     }

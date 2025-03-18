@@ -429,6 +429,36 @@ pub extern "C" fn askar_store_set_default_profile(
 }
 
 #[no_mangle]
+pub extern "C" fn askar_store_rename_profile(
+    handle: StoreHandle,
+    from_profile: FfiStr<'_>,
+    to_profile: FfiStr<'_>,
+    cb: Option<extern "C" fn(cb_id: CallbackId, err: ErrorCode, renamed: i8)>,
+    cb_id: CallbackId,
+) -> ErrorCode {
+    catch_err! {
+        trace!("Rename profile");
+        let cb = cb.ok_or_else(|| err_msg!("No callback provided"))?;
+        let from_profile = from_profile.into_opt_string().ok_or_else(|| err_msg!("Old profile name not provided"))?;
+        let to_profile = to_profile.into_opt_string().ok_or_else(|| err_msg!("New profile name not provided"))?;
+        let cb = EnsureCallback::new(move |result|
+            match result {
+                Ok(renamed) => cb(cb_id, ErrorCode::Success, renamed as i8),
+                Err(err) => cb(cb_id, set_last_error(Some(err)), 0),
+            }
+        );
+        spawn_ok(async move {
+            let result = async {
+                let store = handle.load().await?;
+                store.rename_profile(from_profile, to_profile).await
+            }.await;
+            cb.resolve(result);
+        });
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn askar_store_rekey(
     handle: StoreHandle,
     key_method: FfiStr<'_>,

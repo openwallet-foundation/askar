@@ -64,6 +64,10 @@ impl KeyCache {
     pub async fn get_profile(&self, name: &str) -> Option<(ProfileId, Arc<ProfileKey>)> {
         self.profile_info.read().await.get(name).cloned()
     }
+
+    pub async fn clear_profile(&self, name: &str) {
+        self.profile_info.write().await.remove(name);
+    }
 }
 
 pub(crate) trait EntryEncryptor {

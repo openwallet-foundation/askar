@@ -379,7 +379,7 @@ async def test_profile(store: Store):
     assert set(await store.list_profiles()) == {active_profile}
 
     # opening removed profile should fail
-    with raises(AskarError, match="removed"):
+    with raises(AskarError, match="not found"):
         async with store.session(profile) as session:
             pass
 
@@ -400,6 +400,13 @@ async def test_profile(store: Store):
     assert (await store.get_default_profile()) != profile
     await store.set_default_profile(profile)
     assert (await store.get_default_profile()) == profile
+
+    await store.rename_profile(profile, "test-profile")
+    async with store.session("test-profile") as session:
+        pass
+    with raises(AskarError, match="not found"):
+        async with store.session(profile) as session:
+            pass
 
 
 async def test_copy(store: Store):

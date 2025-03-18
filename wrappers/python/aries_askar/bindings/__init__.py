@@ -180,6 +180,23 @@ async def store_remove_profile(handle: StoreHandle, name: str) -> bool:
     )
 
 
+async def store_rename_profile(
+    handle: StoreHandle, from_name: str, to_name: str
+) -> bool:
+    """Change the name of an existing profile in a Store."""
+    return (
+        await invoke_async(
+            "askar_store_rename_profile",
+            (StoreHandle, FfiStr, FfiStr),
+            handle,
+            from_name,
+            to_name,
+            return_type=c_int8,
+        )
+        == 1
+    )
+
+
 async def store_list_profiles(handle: StoreHandle) -> Sequence[str]:
     """List the profile identifiers present in a Store."""
     handle = await invoke_async(
