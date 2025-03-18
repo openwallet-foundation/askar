@@ -330,7 +330,7 @@ pub(crate) struct DbSessionTxn<'a, DB: ExtDatabase> {
     rollback: bool,
 }
 
-impl<'a, DB: ExtDatabase> DbSessionTxn<'a, DB> {
+impl<DB: ExtDatabase> DbSessionTxn<'_, DB> {
     pub fn connection_mut(&mut self) -> &mut Connection<DB> {
         self.inner.connection_mut().unwrap().as_mut()
     }

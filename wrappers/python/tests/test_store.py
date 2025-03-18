@@ -1,6 +1,7 @@
 import asyncio
 import gc
 import os
+from typing import AsyncGenerator
 from weakref import WeakKeyDictionary
 
 from pytest import mark, raises
@@ -29,7 +30,7 @@ def raw_key() -> str:
 
 
 @pytest_asyncio.fixture
-async def store() -> Store:
+async def store() -> AsyncGenerator[Store, None]:
     key = raw_key()
     store = await Store.provision(TEST_STORE_URI, "raw", key, recreate=True)
     yield store

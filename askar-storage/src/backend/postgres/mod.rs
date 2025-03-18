@@ -759,8 +759,8 @@ async fn perform_insert(
     Ok(())
 }
 
-async fn perform_remove<'q>(
-    active: &mut DbSessionActive<'q, Postgres>,
+async fn perform_remove(
+    active: &mut DbSessionActive<'_, Postgres>,
     kind: EntryKind,
     enc_category: &[u8],
     enc_name: &[u8],
