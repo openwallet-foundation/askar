@@ -38,7 +38,7 @@ hex = "0.4"
 hmac = "0.12"
 itertools = "0.14"
 log = { version = "0.4", optional = true }
-once_cell = "1.20"
+once_cell = "1.21"
 percent-encoding = "2.0"
 rmp-serde = { version = "1.1", optional = true }
 serde = { version = "1.0", features = ["derive"] }
