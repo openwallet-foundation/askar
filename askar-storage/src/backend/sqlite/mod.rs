@@ -601,7 +601,7 @@ impl ExtDatabase for Sqlite {
         // no good way to start an immediate transaction with sqlx. Without this
         // adjustment, updates will run into 'database is locked' errors.
         Box::pin(async move {
-            <Sqlite as Database>::TransactionManager::begin(conn).await?;
+            <Sqlite as Database>::TransactionManager::begin(conn, None).await?;
             if !nested {
                 // a no-op write transaction
                 sqlx::query("DELETE FROM config WHERE 0")

@@ -228,7 +228,7 @@ pub trait ExtDatabase: Database {
         conn: &mut Connection<Self>,
         _nested: bool,
     ) -> BoxFuture<'_, Result<(), SqlxError>> {
-        <Self as Database>::TransactionManager::begin(conn)
+        <Self as Database>::TransactionManager::begin(conn, None)
     }
 }
 
