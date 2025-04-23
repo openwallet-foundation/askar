@@ -1,7 +1,7 @@
 # askar
 
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/openwallet-foundation/askar/badge)](https://scorecard.dev/viewer/?uri=github.com/openwallet-foundation/askar)
-[![Unit Tests](https://github.com/openwallet-foundation/askar/workflows/Aries-Askar/badge.svg)](https://github.com/openwallet-foundation/askar/actions)
+[![Unit Tests](https://github.com/openwallet-foundation/askar/actions/workflows/build.yml/badge.svg)](https://github.com/openwallet-foundation/askar/actions/workflows/build.yml)
 [![Rust Crate](https://img.shields.io/crates/v/aries-askar.svg)](https://crates.io/crates/aries-askar)
 [![Rust Documentation](https://docs.rs/aries-askar/badge.svg)](https://docs.rs/aries-askar)
 [![Python Package](https://img.shields.io/pypi/v/aries_askar)](https://pypi.org/project/aries-askar/)
