@@ -50,7 +50,7 @@ impl TestDB {
             // connections are being closed, in case postgres is near the
             // configured connection limit.
             let mut lock_txn = conn_pool.acquire().await?.detach();
-            <Postgres as Database>::TransactionManager::begin(&mut lock_txn).await?;
+            <Postgres as Database>::TransactionManager::begin(&mut lock_txn, None).await?;
             if sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(99999)")
                 .fetch_one(&mut lock_txn)
                 .await?
