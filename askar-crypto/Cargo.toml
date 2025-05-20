@@ -34,7 +34,7 @@ std_rng = ["getrandom", "rand/std", "rand/std_rng"]
 [dev-dependencies]
 base64 = { version = "0.22", default-features = false, features = ["alloc"] }
 ciborium = "0.2"
-criterion = "0.5"
+criterion = "0.6"
 hex-literal = "0.4"
 serde-json-core = { version = "0.6", default-features = false, features = [
     "std",
