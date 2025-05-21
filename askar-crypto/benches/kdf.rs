@@ -3,7 +3,7 @@ use std::hint::black_box;
 use askar_crypto::kdf::concat::{ConcatKDF, ConcatKDFParams};
 use sha2::Sha256;
 
-use criterion::{Criterion};
+use criterion::Criterion;
 
 fn criterion_benchmark(c: &mut Criterion) {
     {

@@ -1,7 +1,8 @@
 //! BLS12-381 key support
 
 use core::{
-    fmt::{self, Debug, Formatter}, ops::Add
+    fmt::{self, Debug, Formatter},
+    ops::Add,
 };
 
 use aead::generic_array::GenericArray;
@@ -184,7 +185,8 @@ impl<Pk: BlsPublicKeyType> FromJwk for BlsKeyPair<Pk> {
                     jwk.x.decode_base64(&mut arr[..Pk::BufferSize::USIZE])?;
                     jwk.y.decode_base64(&mut arr[Pk::BufferSize::USIZE..])?;
                     Pk::from_public_bytes(arr)
-                }).map_err(|_| err_msg!(InvalidKeyData, "Invalid public key coordinates"))?
+                })
+                .map_err(|_| err_msg!(InvalidKeyData, "Invalid public key coordinates"))?
             }
 
             // for compatibility with previous version
@@ -198,8 +200,9 @@ impl<Pk: BlsPublicKeyType> FromJwk for BlsKeyPair<Pk> {
 
                 ArrayKey::<Pk::BufferSize>::temp(|arr| {
                     jwk.x.decode_base64(arr)?;
-                    Pk::from_public_bytes(arr) 
-                }).map_err(|_| err_msg!(InvalidKeyData, "Invalid public key coordinates"))?
+                    Pk::from_public_bytes(arr)
+                })
+                .map_err(|_| err_msg!(InvalidKeyData, "Invalid public key coordinates"))?
             }
 
             _ => {
@@ -328,7 +331,11 @@ pub trait BlsPublicKeyType: 'static {
     fn with_bytes<O>(buf: &Self::Buffer, alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O;
 
     /// Access the coordinates of the public key
-    fn with_bytes_uncompressed<O>(buf: &Self::Buffer, alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O;
+    fn with_bytes_uncompressed<O>(
+        buf: &Self::Buffer,
+        alg: Option<KeyAlg>,
+        f: impl FnOnce(&[u8]) -> O,
+    ) -> O;
 }
 
 /// G1 curve
@@ -364,7 +371,11 @@ impl BlsPublicKeyType for G1 {
         f(buf.to_compressed().as_ref())
     }
 
-    fn with_bytes_uncompressed<O>(buf: &Self::Buffer, _alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O {
+    fn with_bytes_uncompressed<O>(
+        buf: &Self::Buffer,
+        _alg: Option<KeyAlg>,
+        f: impl FnOnce(&[u8]) -> O,
+    ) -> O {
         f(buf.to_uncompressed().as_ref())
     }
 }
@@ -388,7 +399,7 @@ impl BlsPublicKeyType for G2 {
     }
 
     fn from_public_bytes(key: &[u8]) -> Result<Self::Buffer, Error> {
-                let res = if let Ok(buf) = key.try_into() {
+        let res = if let Ok(buf) = key.try_into() {
             G2Affine::from_compressed(buf).into_option()
         } else if let Ok(buf) = key.try_into() {
             G2Affine::from_uncompressed(buf).into_option()
@@ -396,18 +407,20 @@ impl BlsPublicKeyType for G2 {
             None
         };
         res.ok_or_else(|| err_msg!(InvalidKeyData))
-
     }
 
     fn with_bytes<O>(buf: &Self::Buffer, _alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O {
         f(buf.to_compressed().as_ref())
     }
 
-    fn with_bytes_uncompressed<O>(buf: &Self::Buffer, _alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O {
+    fn with_bytes_uncompressed<O>(
+        buf: &Self::Buffer,
+        _alg: Option<KeyAlg>,
+        f: impl FnOnce(&[u8]) -> O,
+    ) -> O {
         f(buf.to_uncompressed().as_ref())
     }
 }
-
 
 impl TryFrom<&BlsKeyPair<G1>> for BlsKeyPair<G2> {
     type Error = Error;
@@ -424,7 +437,6 @@ impl TryFrom<&BlsKeyPair<G1>> for BlsKeyPair<G2> {
     }
 }
 
-
 impl TryFrom<&BlsKeyPair<G2>> for BlsKeyPair<G1> {
     type Error = Error;
 
@@ -439,7 +451,6 @@ impl TryFrom<&BlsKeyPair<G2>> for BlsKeyPair<G1> {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -548,7 +559,7 @@ mod tests {
         assert_eq!(
             jwk.d,
             base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .encode(&sk_rev)
+                .encode(sk_rev)
                 .as_str()
         );
         let _sk_load = BlsKeyPair::<G1>::from_jwk_parts(jwk).unwrap();
@@ -591,12 +602,15 @@ mod tests {
         let _ = as_g1
             .to_jwk_public(None)
             .expect("Error converting key to JWK");
-        let g2key = key.convert_key(KeyAlg::Bls12_381(BlsCurves::G2)).expect("Error converting keypair");
+        let g2key = key
+            .convert_key(KeyAlg::Bls12_381(BlsCurves::G2))
+            .expect("Error converting keypair");
         assert_eq!(g2key.algorithm(), KeyAlg::Bls12_381(BlsCurves::G2));
         let as_g2 = g2key
             .downcast_ref::<BlsKeyPair<G2>>()
             .expect("Error downcasting BLS key");
-        let g2_expect = BlsKeyPair::<G2>::from_jwk(test_jwk_g2).expect("Error decoding BLS key JWK");
+        let g2_expect =
+            BlsKeyPair::<G2>::from_jwk(test_jwk_g2).expect("Error decoding BLS key JWK");
         assert_eq!(&g2_expect, as_g2);
     }
 
@@ -630,7 +644,7 @@ mod tests {
             .downcast_ref::<BlsKeyPair<G1>>()
             .expect("Error downcasting BLS key");
 
-        let knew = BlsKeyPair::<G1>::from_jwk(&test_jwk_new).expect("Error decoding BLS key JWK");
+        let knew = BlsKeyPair::<G1>::from_jwk(test_jwk_new).expect("Error decoding BLS key JWK");
         assert_eq!(as_bls, &knew);
 
         let _ = as_bls
