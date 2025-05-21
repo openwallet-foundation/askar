@@ -1,10 +1,9 @@
-#[macro_use]
-extern crate criterion;
+use std::hint::black_box;
 
 use askar_crypto::kdf::concat::{ConcatKDF, ConcatKDFParams};
 use sha2::Sha256;
 
-use criterion::{black_box, Criterion};
+use criterion::{Criterion};
 
 fn criterion_benchmark(c: &mut Criterion) {
     {
@@ -28,5 +27,5 @@ fn criterion_benchmark(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, criterion_benchmark);
-criterion_main!(benches);
+criterion::criterion_group!(benches, criterion_benchmark);
+criterion::criterion_main!(benches);
