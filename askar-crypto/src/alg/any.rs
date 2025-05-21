@@ -13,7 +13,7 @@ use super::{
 
 #[cfg(feature = "bls")]
 use super::{
-    bls::{BlsKeyPair, BlsPublicKeyType, G1, G1G2, G2},
+    bls::{BlsKeyPair, BlsPublicKeyType, G1, G2},
     BlsCurves,
 };
 
@@ -262,8 +262,6 @@ fn generate_any_with_rng<R: AllocKey>(alg: KeyAlg, rng: impl KeyMaterial) -> Res
         KeyAlg::Bls12_381(BlsCurves::G1) => BlsKeyPair::<G1>::generate(rng).map(R::alloc_key),
         #[cfg(feature = "bls")]
         KeyAlg::Bls12_381(BlsCurves::G2) => BlsKeyPair::<G2>::generate(rng).map(R::alloc_key),
-        #[cfg(feature = "bls")]
-        KeyAlg::Bls12_381(BlsCurves::G1G2) => BlsKeyPair::<G1G2>::generate(rng).map(R::alloc_key),
         #[cfg(feature = "chacha")]
         KeyAlg::Chacha20(Chacha20Types::C20P) => {
             Chacha20Key::<C20P>::generate(rng).map(R::alloc_key)
@@ -332,10 +330,6 @@ fn from_public_bytes_any<R: AllocKey>(alg: KeyAlg, public: &[u8]) -> Result<R, E
         KeyAlg::Bls12_381(BlsCurves::G2) => {
             BlsKeyPair::<G2>::from_public_bytes(public).map(R::alloc_key)
         }
-        #[cfg(feature = "bls")]
-        KeyAlg::Bls12_381(BlsCurves::G1G2) => {
-            BlsKeyPair::<G1G2>::from_public_bytes(public).map(R::alloc_key)
-        }
         #[cfg(feature = "ed25519")]
         KeyAlg::Ed25519 => Ed25519KeyPair::from_public_bytes(public).map(R::alloc_key),
         #[cfg(feature = "ed25519")]
@@ -394,10 +388,6 @@ fn from_secret_bytes_any<R: AllocKey>(alg: KeyAlg, secret: &[u8]) -> Result<R, E
         #[cfg(feature = "bls")]
         KeyAlg::Bls12_381(BlsCurves::G2) => {
             BlsKeyPair::<G2>::from_secret_bytes(secret).map(R::alloc_key)
-        }
-        #[cfg(feature = "bls")]
-        KeyAlg::Bls12_381(BlsCurves::G1G2) => {
-            BlsKeyPair::<G1G2>::from_secret_bytes(secret).map(R::alloc_key)
         }
         #[cfg(feature = "chacha")]
         KeyAlg::Chacha20(Chacha20Types::C20P) => {
@@ -555,12 +545,12 @@ fn from_key_derivation_any<R: AllocKey>(
 fn convert_key_any<R: AllocKey>(key: &AnyKey, alg: KeyAlg) -> Result<R, Error> {
     match (key.algorithm(), alg) {
         #[cfg(feature = "bls")]
-        (KeyAlg::Bls12_381(BlsCurves::G1G2), KeyAlg::Bls12_381(BlsCurves::G1)) => Ok(R::alloc_key(
-            BlsKeyPair::<G1>::from(key.assume::<BlsKeyPair<G1G2>>()),
+        (KeyAlg::Bls12_381(BlsCurves::G1), KeyAlg::Bls12_381(BlsCurves::G2)) => Ok(R::alloc_key(
+            BlsKeyPair::<G2>::try_from(key.assume::<BlsKeyPair<G1>>())?,
         )),
         #[cfg(feature = "bls")]
-        (KeyAlg::Bls12_381(BlsCurves::G1G2), KeyAlg::Bls12_381(BlsCurves::G2)) => Ok(R::alloc_key(
-            BlsKeyPair::<G2>::from(key.assume::<BlsKeyPair<G1G2>>()),
+        (KeyAlg::Bls12_381(BlsCurves::G2), KeyAlg::Bls12_381(BlsCurves::G1)) => Ok(R::alloc_key(
+            BlsKeyPair::<G1>::try_from(key.assume::<BlsKeyPair<G2>>())?,
         )),
         #[cfg(feature = "ed25519")]
         (KeyAlg::Ed25519, KeyAlg::X25519) => Ok(<X25519KeyPair as TryFrom<_>>::try_from(
@@ -619,13 +609,13 @@ fn from_jwk_any<R: AllocKey>(jwk: JwkParts<'_>) -> Result<R, Error> {
         #[cfg(feature = "aes")]
         ("oct", _, A256Kw::JWK_ALG) => AesKey::<A256Kw>::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "bls")]
-        ("OKP" | "EC", G1::JWK_CURVE, _) => BlsKeyPair::<G1>::from_jwk_parts(jwk).map(R::alloc_key),
+        ("EC", G1::JWK_CURVE, _) => BlsKeyPair::<G1>::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "bls")]
-        ("OKP" | "EC", G2::JWK_CURVE, _) => BlsKeyPair::<G2>::from_jwk_parts(jwk).map(R::alloc_key),
+        ("EC", G2::JWK_CURVE, _) => BlsKeyPair::<G2>::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "bls")]
-        ("OKP" | "EC", G1G2::JWK_CURVE, _) => {
-            BlsKeyPair::<G1G2>::from_jwk_parts(jwk).map(R::alloc_key)
-        }
+        ("OKP", G1::JWK_CURVE_OKP, _) => BlsKeyPair::<G1>::from_jwk_parts(jwk).map(R::alloc_key),
+        #[cfg(feature = "bls")]
+        ("OKP", G2::JWK_CURVE_OKP, _) => BlsKeyPair::<G2>::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "chacha")]
         ("oct", _, C20P::JWK_ALG) => Chacha20Key::<C20P>::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "chacha")]
@@ -690,10 +680,6 @@ macro_rules! match_key_alg {
         #[cfg(feature = "bls")]
         if $alg == KeyAlg::Bls12_381(BlsCurves::G2) {
             return Ok($key.assume::<BlsKeyPair<G2>>());
-        }
-        #[cfg(feature = "bls")]
-        if $alg == KeyAlg::Bls12_381(BlsCurves::G1G2) {
-            return Ok($key.assume::<BlsKeyPair<G1G2>>());
         }
         match_key_alg!(@ $($rest)*; $key, $alg)
     }};

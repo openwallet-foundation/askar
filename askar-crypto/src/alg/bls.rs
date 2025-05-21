@@ -1,20 +1,17 @@
 //! BLS12-381 key support
 
 use core::{
-    fmt::{self, Debug, Formatter},
-    ops::Add,
+    fmt::{self, Debug, Formatter}, ops::Add
 };
 
 use aead::generic_array::GenericArray;
 use blake2::Digest;
 use bls12_381::{G1Affine, G1Projective, G2Affine, G2Projective, Scalar};
-use group::GroupEncoding;
 use sha2::Sha256;
-use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::generic_array::{
-    typenum::{self, Unsigned, U144, U32, U48, U96},
+    typenum::{self, Unsigned, U192, U32, U48, U96},
     ArrayLength,
 };
 
@@ -28,7 +25,9 @@ use crate::{
 };
 
 /// The 'kty' value of a BLS key JWK
-pub const JWK_KEY_TYPE: &str = "OKP";
+pub const JWK_KEY_TYPE_EC: &str = "EC";
+/// The 'kty' value of a BLS key JWK (OKP variant)
+pub const JWK_KEY_TYPE_OKP: &str = "OKP";
 
 /// A BLS12-381 key pair
 #[derive(Clone, Zeroize)]
@@ -51,14 +50,6 @@ impl<Pk: BlsPublicKeyType> BlsKeyPair<Pk> {
         Self {
             secret: Some(sk),
             public,
-        }
-    }
-
-    pub(crate) fn check_public_bytes(&self, pk: &[u8]) -> Result<(), Error> {
-        if Pk::with_bytes(&self.public, None, |slf| slf.ct_eq(pk)).into() {
-            Ok(())
-        } else {
-            Err(err_msg!(InvalidKeyData, "invalid BLS keypair"))
         }
     }
 
@@ -159,12 +150,18 @@ where
 impl<Pk: BlsPublicKeyType> ToJwk for BlsKeyPair<Pk> {
     fn encode_jwk(&self, enc: &mut dyn JwkEncoder) -> Result<(), Error> {
         enc.add_str("crv", Pk::get_jwk_curve(enc.alg()))?;
-        enc.add_str("kty", JWK_KEY_TYPE)?;
-        Pk::with_bytes(&self.public, enc.alg(), |buf| enc.add_as_base64("x", buf))?;
+        enc.add_str("kty", JWK_KEY_TYPE_EC)?;
+        Pk::with_bytes_uncompressed(&self.public, enc.alg(), |buf| {
+            enc.add_as_base64("x", &buf[..Pk::BufferSize::USIZE])?;
+            enc.add_as_base64("y", &buf[Pk::BufferSize::USIZE..])
+        })?;
         if enc.is_secret() {
             self.with_secret_bytes(|buf| {
                 if let Some(sk) = buf {
-                    enc.add_as_base64("d", sk)
+                    let mut skr = Zeroizing::new([0u8; 32]);
+                    skr.copy_from_slice(sk);
+                    skr.reverse(); // into little-endian
+                    enc.add_as_base64("d", skr.as_ref())
                 } else {
                     Ok(())
                 }
@@ -176,35 +173,61 @@ impl<Pk: BlsPublicKeyType> ToJwk for BlsKeyPair<Pk> {
 
 impl<Pk: BlsPublicKeyType> FromJwk for BlsKeyPair<Pk> {
     fn from_jwk_parts(jwk: JwkParts<'_>) -> Result<Self, Error> {
-        if jwk.kty != JWK_KEY_TYPE &&
-            /* compatibility with previous version */
-            jwk.kty != "EC"
-        {
-            return Err(err_msg!(InvalidKeyData, "Unsupported key type"));
-        }
-        if jwk.crv != Pk::JWK_CURVE {
-            return Err(err_msg!(InvalidKeyData, "Unsupported key algorithm"));
-        }
-        ArrayKey::<Pk::BufferSize>::temp(|pk_arr| {
-            if jwk.x.decode_base64(pk_arr)? != pk_arr.len() {
-                Err(err_msg!(InvalidKeyData))
-            } else if jwk.d.is_some() {
-                ArrayKey::<U32>::temp(|sk_arr| {
-                    if jwk.d.decode_base64(sk_arr)? != sk_arr.len() {
-                        Err(err_msg!(InvalidKeyData))
-                    } else {
-                        let result = BlsKeyPair::from_secret_key(BlsSecretKey::from_bytes(sk_arr)?);
-                        result.check_public_bytes(pk_arr)?;
-                        Ok(result)
-                    }
-                })
-            } else {
-                Ok(Self {
-                    secret: None,
-                    public: Pk::from_public_bytes(pk_arr)?,
-                })
+        let public = match jwk.kty {
+            JWK_KEY_TYPE_EC => {
+                if jwk.crv != Pk::JWK_CURVE {
+                    return Err(err_msg!(InvalidKeyData, "Unsupported key algorithm"));
+                }
+
+                ArrayKey::<Pk::BufferSizeWide>::temp(|arr| {
+                    // decode the x and y coordinates, individual lengths may be less than the full size
+                    jwk.x.decode_base64(&mut arr[..Pk::BufferSize::USIZE])?;
+                    jwk.y.decode_base64(&mut arr[Pk::BufferSize::USIZE..])?;
+                    Pk::from_public_bytes(arr)
+                }).map_err(|_| err_msg!(InvalidKeyData, "Invalid public key coordinates"))?
             }
-        })
+
+            // for compatibility with previous version
+            JWK_KEY_TYPE_OKP => {
+                if jwk.crv != Pk::JWK_CURVE_OKP {
+                    return Err(err_msg!(InvalidKeyData, "Unsupported key algorithm"));
+                }
+                if jwk.y.is_some() {
+                    return Err(err_msg!(InvalidKeyData, "Disallowed y coordinate"));
+                }
+
+                ArrayKey::<Pk::BufferSize>::temp(|arr| {
+                    jwk.x.decode_base64(arr)?;
+                    Pk::from_public_bytes(arr) 
+                }).map_err(|_| err_msg!(InvalidKeyData, "Invalid public key coordinates"))?
+            }
+
+            _ => {
+                return Err(err_msg!(InvalidKeyData, "Unsupported key type"));
+            }
+        };
+
+        if jwk.d.is_some() {
+            ArrayKey::<U32>::temp(|sk_arr| {
+                if jwk.d.decode_base64(sk_arr)? != sk_arr.len() {
+                    Err(err_msg!(InvalidKeyData, "Invalid private key"))
+                } else {
+                    if jwk.kty == JWK_KEY_TYPE_EC {
+                        sk_arr.reverse(); // into big-endian
+                    }
+                    let result = BlsKeyPair::from_secret_key(BlsSecretKey::from_bytes(sk_arr)?);
+                    if result.public != public {
+                        return Err(err_msg!(InvalidKeyData, "Public key mismatch"));
+                    }
+                    Ok(result)
+                }
+            })
+        } else {
+            Ok(Self {
+                secret: None,
+                public,
+            })
+        }
     }
 }
 
@@ -278,13 +301,17 @@ pub trait BlsPublicKeyType: 'static {
     /// The concrete key representation
     type Buffer: Clone + Debug + PartialEq + Sized + Zeroize;
 
-    /// The size of the serialized public key
+    /// The size of the serialized compressed public key
     type BufferSize: ArrayLength<u8>;
+    /// The size of the serialized uncompressed public key
+    type BufferSizeWide: ArrayLength<u8>;
 
     /// The associated algorithm type
     const ALG_TYPE: BlsCurves;
     /// The associated JWK curve name
     const JWK_CURVE: &'static str;
+    /// The associated JWK curve name (OKP variant)
+    const JWK_CURVE_OKP: &'static str;
 
     /// Get the JWK curve for a specific key algorithm
     fn get_jwk_curve(_alg: Option<KeyAlg>) -> &'static str {
@@ -299,6 +326,9 @@ pub trait BlsPublicKeyType: 'static {
 
     /// Access the bytes of the public key
     fn with_bytes<O>(buf: &Self::Buffer, alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O;
+
+    /// Access the coordinates of the public key
+    fn with_bytes_uncompressed<O>(buf: &Self::Buffer, alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O;
 }
 
 /// G1 curve
@@ -308,9 +338,11 @@ pub struct G1;
 impl BlsPublicKeyType for G1 {
     type Buffer = G1Affine;
     type BufferSize = U48;
+    type BufferSizeWide = U96;
 
     const ALG_TYPE: BlsCurves = BlsCurves::G1;
-    const JWK_CURVE: &'static str = "BLS12381_G1";
+    const JWK_CURVE: &'static str = "BLS12381G1";
+    const JWK_CURVE_OKP: &'static str = "BLS12381_G1";
 
     #[inline]
     fn from_secret_scalar(secret: &Scalar) -> Self::Buffer {
@@ -318,15 +350,22 @@ impl BlsPublicKeyType for G1 {
     }
 
     fn from_public_bytes(key: &[u8]) -> Result<Self::Buffer, Error> {
-        let buf: Option<G1Affine> = G1Affine::from_compressed(
-            TryInto::<&[u8; 48]>::try_into(key).map_err(|_| err_msg!(InvalidKeyData))?,
-        )
-        .into();
-        buf.ok_or_else(|| err_msg!(InvalidKeyData))
+        let res = if let Ok(buf) = key.try_into() {
+            G1Affine::from_compressed(buf).into_option()
+        } else if let Ok(buf) = key.try_into() {
+            G1Affine::from_uncompressed(buf).into_option()
+        } else {
+            None
+        };
+        res.ok_or_else(|| err_msg!(InvalidKeyData))
     }
 
     fn with_bytes<O>(buf: &Self::Buffer, _alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O {
-        f(buf.to_bytes().as_ref())
+        f(buf.to_compressed().as_ref())
+    }
+
+    fn with_bytes_uncompressed<O>(buf: &Self::Buffer, _alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O {
+        f(buf.to_uncompressed().as_ref())
     }
 }
 
@@ -337,9 +376,11 @@ pub struct G2;
 impl BlsPublicKeyType for G2 {
     type Buffer = G2Affine;
     type BufferSize = U96;
+    type BufferSizeWide = U192;
 
     const ALG_TYPE: BlsCurves = BlsCurves::G2;
-    const JWK_CURVE: &'static str = "BLS12381_G2";
+    const JWK_CURVE: &'static str = "BLS12381G2";
+    const JWK_CURVE_OKP: &'static str = "BLS12381_G2";
 
     #[inline]
     fn from_secret_scalar(secret: &Scalar) -> Self::Buffer {
@@ -347,104 +388,58 @@ impl BlsPublicKeyType for G2 {
     }
 
     fn from_public_bytes(key: &[u8]) -> Result<Self::Buffer, Error> {
-        let buf: Option<G2Affine> = G2Affine::from_compressed(
-            TryInto::<&[u8; 96]>::try_into(key).map_err(|_| err_msg!(InvalidKeyData))?,
-        )
-        .into();
-        buf.ok_or_else(|| err_msg!(InvalidKeyData))
+                let res = if let Ok(buf) = key.try_into() {
+            G2Affine::from_compressed(buf).into_option()
+        } else if let Ok(buf) = key.try_into() {
+            G2Affine::from_uncompressed(buf).into_option()
+        } else {
+            None
+        };
+        res.ok_or_else(|| err_msg!(InvalidKeyData))
+
     }
 
     fn with_bytes<O>(buf: &Self::Buffer, _alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O {
-        f(buf.to_bytes().as_ref())
+        f(buf.to_compressed().as_ref())
+    }
+
+    fn with_bytes_uncompressed<O>(buf: &Self::Buffer, _alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O {
+        f(buf.to_uncompressed().as_ref())
     }
 }
 
-/// G1 + G2 curves
-#[derive(Debug)]
-pub struct G1G2;
 
-impl BlsPublicKeyType for G1G2 {
-    type Buffer = G1G2Pair;
-    type BufferSize = U144;
+impl TryFrom<&BlsKeyPair<G1>> for BlsKeyPair<G2> {
+    type Error = Error;
 
-    const ALG_TYPE: BlsCurves = BlsCurves::G1G2;
-    const JWK_CURVE: &'static str = "BLS12381_G1G2";
-
-    fn get_jwk_curve(alg: Option<KeyAlg>) -> &'static str {
-        if alg == Some(KeyAlg::Bls12_381(BlsCurves::G1)) {
-            G1::JWK_CURVE
-        } else if alg == Some(KeyAlg::Bls12_381(BlsCurves::G2)) {
-            G2::JWK_CURVE
-        } else {
-            Self::JWK_CURVE
-        }
-    }
-
-    #[inline]
-    fn from_secret_scalar(secret: &Scalar) -> Self::Buffer {
-        G1G2Pair(
-            G1Affine::from(G1Projective::generator() * secret),
-            G2Affine::from(G2Projective::generator() * secret),
-        )
-    }
-
-    fn from_public_bytes(key: &[u8]) -> Result<Self::Buffer, Error> {
-        if key.len() != Self::BufferSize::USIZE {
-            return Err(err_msg!(InvalidKeyData));
-        }
-        let g1: Option<G1Affine> =
-            G1Affine::from_compressed(TryInto::<&[u8; 48]>::try_into(&key[..48]).unwrap()).into();
-        let g2: Option<G2Affine> =
-            G2Affine::from_compressed(TryInto::<&[u8; 96]>::try_into(&key[48..]).unwrap()).into();
-        if let (Some(g1), Some(g2)) = (g1, g2) {
-            Ok(G1G2Pair(g1, g2))
-        } else {
-            Err(err_msg!(InvalidKeyData))
-        }
-    }
-
-    fn with_bytes<O>(buf: &Self::Buffer, alg: Option<KeyAlg>, f: impl FnOnce(&[u8]) -> O) -> O {
-        if alg == Some(KeyAlg::Bls12_381(BlsCurves::G1)) {
-            ArrayKey::<U48>::temp(|arr| {
-                arr.copy_from_slice(buf.0.to_bytes().as_ref());
-                f(&arr[..])
-            })
-        } else if alg == Some(KeyAlg::Bls12_381(BlsCurves::G2)) {
-            ArrayKey::<U96>::temp(|arr| {
-                arr.copy_from_slice(buf.1.to_bytes().as_ref());
-                f(&arr[..])
+    fn try_from(kp: &BlsKeyPair<G1>) -> Result<Self, Self::Error> {
+        if let Some(sec) = kp.secret.as_ref() {
+            Ok(BlsKeyPair {
+                secret: Some(sec.clone()),
+                public: G2::from_secret_scalar(&sec.0),
             })
         } else {
-            ArrayKey::<U144>::temp(|arr| {
-                arr[0..48].copy_from_slice(buf.0.to_bytes().as_ref());
-                arr[48..].copy_from_slice(buf.1.to_bytes().as_ref());
-                f(&arr[..])
+            Err(err_msg!(InvalidKeyData, "No secret key available"))
+        }
+    }
+}
+
+
+impl TryFrom<&BlsKeyPair<G2>> for BlsKeyPair<G1> {
+    type Error = Error;
+
+    fn try_from(kp: &BlsKeyPair<G2>) -> Result<Self, Self::Error> {
+        if let Some(sec) = kp.secret.as_ref() {
+            Ok(BlsKeyPair {
+                secret: Some(sec.clone()),
+                public: G1::from_secret_scalar(&sec.0),
             })
+        } else {
+            Err(err_msg!(InvalidKeyData, "No secret key available"))
         }
     }
 }
 
-impl From<&BlsKeyPair<G1G2>> for BlsKeyPair<G1> {
-    fn from(kp: &BlsKeyPair<G1G2>) -> Self {
-        BlsKeyPair {
-            secret: kp.secret.clone(),
-            public: kp.public.0,
-        }
-    }
-}
-
-impl From<&BlsKeyPair<G1G2>> for BlsKeyPair<G2> {
-    fn from(kp: &BlsKeyPair<G1G2>) -> Self {
-        BlsKeyPair {
-            secret: kp.secret.clone(),
-            public: kp.public.1,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Zeroize)]
-/// A utility struct combining G1 and G2 public keys
-pub struct G1G2Pair(G1Affine, G2Affine);
 
 #[cfg(test)]
 mod tests {
@@ -506,38 +501,26 @@ mod tests {
     }
 
     #[test]
-    fn g1g2_key_expected() {
-        let sk = hex!("0d7359d57963ab8fbbde1852dcf553fedbc31f464d80ee7d40ae683122b45070");
-        let kp = BlsKeyPair::<G1G2>::from_secret_bytes(&sk[..]).unwrap();
-        let pk = kp.to_public_bytes().unwrap();
-        assert_eq!(
-            pk.as_hex().to_string(),
-            "a2c975348667926acf12f3eecb005044e08a7a9b7d95f30bd281b55445107367a2e5d0558be7943c8bd13f9a1a7036fb\
-            a5e43d5ecb7b8c01ceb3b91f7413b628ef02c6859dc42a4354b21f9195531988a648655037faafd1bac2fd2d7d9466180baa3705a45a6c597853db51eaf431616057fd8049c6bee8764292f9a104200a45a63ceae9d3c368643ab9e5ff0f8810"
-        );
-        assert_eq!(
-            BlsKeyPair::<G1G2>::from_public_bytes(pk.as_ref())
-                .unwrap()
-                .to_public_bytes()
-                .unwrap(),
-            pk
-        );
-    }
-
-    #[test]
     fn g1_jwk_expected() {
         let test_pvt = &hex!("0d7359d57963ab8fbbde1852dcf553fedbc31f464d80ee7d40ae683122b45070");
-        let test_pub_g1 = &hex!("a2c975348667926acf12f3eecb005044e08a7a9b7d95f30bd281b55445107367a2e5d0558be7943c8bd13f9a1a7036fb");
+        let test_pub_g1_x = &hex!("02c975348667926acf12f3eecb005044e08a7a9b7d95f30bd281b55445107367a2e5d0558be7943c8bd13f9a1a7036fb");
+        let test_pub_g1_y = &hex!("13f396ec1b79d6f461189d20a0d3f27718dd6efff3066c31380d785bce9957abc640d2f1301266d1e9d7b1e6da60da95");
         let kp = BlsKeyPair::<G1>::from_secret_bytes(&test_pvt[..]).expect("Error creating key");
 
         let jwk = kp.to_jwk_public(None).expect("Error converting key to JWK");
         let jwk = JwkParts::try_from_str(&jwk).expect("Error parsing JWK");
-        assert_eq!(jwk.kty, JWK_KEY_TYPE);
+        assert_eq!(jwk.kty, JWK_KEY_TYPE_EC);
         assert_eq!(jwk.crv, G1::JWK_CURVE);
         assert_eq!(
             jwk.x,
             base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .encode(test_pub_g1)
+                .encode(test_pub_g1_x)
+                .as_str()
+        );
+        assert_eq!(
+            jwk.y,
+            base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .encode(test_pub_g1_y)
                 .as_str()
         );
         assert_eq!(jwk.d, None);
@@ -546,18 +529,26 @@ mod tests {
 
         let jwk = kp.to_jwk_secret(None).expect("Error converting key to JWK");
         let jwk = JwkParts::from_slice(&jwk).expect("Error parsing JWK");
-        assert_eq!(jwk.kty, JWK_KEY_TYPE);
+        assert_eq!(jwk.kty, JWK_KEY_TYPE_EC);
         assert_eq!(jwk.crv, G1::JWK_CURVE);
         assert_eq!(
             jwk.x,
             base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .encode(test_pub_g1)
+                .encode(test_pub_g1_x)
                 .as_str()
         );
         assert_eq!(
+            jwk.y,
+            base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .encode(test_pub_g1_y)
+                .as_str()
+        );
+        let mut sk_rev = *test_pvt;
+        sk_rev.reverse(); // into little-endian
+        assert_eq!(
             jwk.d,
             base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .encode(test_pvt)
+                .encode(&sk_rev)
                 .as_str()
         );
         let _sk_load = BlsKeyPair::<G1>::from_jwk_parts(jwk).unwrap();
@@ -569,22 +560,79 @@ mod tests {
 
     #[cfg(feature = "any_key")]
     #[test]
-    // test loading of a key with the EC key type
+    // test loading of a key with the EC key type along with conversion to a G2 key
+    fn g1_jwk_any() {
+        use crate::alg::{any::AnyKey, AnyKeyCreate, BlsCurves, KeyAlg};
+        use alloc::boxed::Box;
+
+        let test_jwk = r#"
+            {
+                "kty": "EC",
+                "crv": "BLS12381G1",
+                "x": "Ed4GBGLVasEp4ejPz44CvllbTldfLLcm2QcIJluBL6p_SQmRrZvJNa3YaJ-Wx8Im",
+                "y": "AbdYAsAb20CHzlVW6VBO9i16BcGOmcYiMLlBEh9DfAiDu_1ZIAd1zewSi9f6517g",
+                "d": "3nc6_s38FVVlawbwmPFOjB4TlAPy_K2Tx39I7XnEnDc"
+            }
+        "#;
+        let test_jwk_g2 = r#"
+            {
+                "kty": "EC",
+                "crv": "BLS12381G2",
+                "x": "GJ4CTKTdbhJ606E_zoXvBerW3susF0rCRkkOjSSoXzAbo75pF5a_TuUGrYICNRpKA6cQe4FqWEgLW0KKW3-5nAXX1BEKk2flns1VE-2hpbRZqmfA0xPyLPomtUBmLZsR",
+                "y": "AnUhMCJ0P0MITDiU4Xf_NHGiJZoyVXGol99Xrrn4fqAcQ-SIXTgbIEP3aBHvsaiQCKqnpWzWycJ4AYOVcaDgKs-ms5bweXiDAafBO-tiuCcrqeAJzY_ZJtNon8IvP_5-",
+                "d": "3nc6_s38FVVlawbwmPFOjB4TlAPy_K2Tx39I7XnEnDc"
+            }
+        "#;
+        let key = Box::<AnyKey>::from_jwk(test_jwk).expect("Error decoding BLS key JWK");
+        assert_eq!(key.algorithm(), KeyAlg::Bls12_381(BlsCurves::G1));
+        let as_g1 = key
+            .downcast_ref::<BlsKeyPair<G1>>()
+            .expect("Error downcasting BLS key");
+        let _ = as_g1
+            .to_jwk_public(None)
+            .expect("Error converting key to JWK");
+        let g2key = key.convert_key(KeyAlg::Bls12_381(BlsCurves::G2)).expect("Error converting keypair");
+        assert_eq!(g2key.algorithm(), KeyAlg::Bls12_381(BlsCurves::G2));
+        let as_g2 = g2key
+            .downcast_ref::<BlsKeyPair<G2>>()
+            .expect("Error downcasting BLS key");
+        let g2_expect = BlsKeyPair::<G2>::from_jwk(test_jwk_g2).expect("Error decoding BLS key JWK");
+        assert_eq!(&g2_expect, as_g2);
+    }
+
+    #[cfg(feature = "any_key")]
+    #[test]
+    // test loading of a key with the OKP key type
     fn g1_jwk_any_compat() {
         use crate::alg::{any::AnyKey, BlsCurves, KeyAlg};
         use alloc::boxed::Box;
 
         let test_jwk_compat = r#"
             {
-                "crv": "BLS12381_G1",
-                "kty": "EC",
-                "x": "osl1NIZnkmrPEvPuywBQROCKept9lfML0oG1VEUQc2ei5dBVi-eUPIvRP5oacDb7"
-            }"#;
+                "crv":"BLS12381_G1",
+                "kty":"OKP",
+                "x":"lQ-SOS1aBydOBEHaKThf667LGeZVe3EiVSLXRd8Y3DBuR8ll4VJONAlytjG1CAc7",
+                "d":"XMltkZ-3H94Rl8orHfWufxrPe1hdURFAUKdyt0SNdrk"
+            }
+        "#;
+        let test_jwk_new = r#"
+            {
+                "crv":"BLS12381G1",
+                "kty":"EC",
+                "x":"FQ-SOS1aBydOBEHaKThf667LGeZVe3EiVSLXRd8Y3DBuR8ll4VJONAlytjG1CAc7",
+                "y":"CvFVTlp_IO8NxTIekI8Ik9drVLNUCQl6sfo6zDa7oOiaoxqTfTnU70HLJzjHQ6_m",
+                "d":"uXaNRLdyp1BAEVFdWHvPGn-u9R0rypcR3h-3n5FtyVw"
+            }
+        "#;
         let key = Box::<AnyKey>::from_jwk(test_jwk_compat).expect("Error decoding BLS key JWK");
         assert_eq!(key.algorithm(), KeyAlg::Bls12_381(BlsCurves::G1));
         let as_bls = key
             .downcast_ref::<BlsKeyPair<G1>>()
             .expect("Error downcasting BLS key");
+
+        let knew = BlsKeyPair::<G1>::from_jwk(&test_jwk_new).expect("Error decoding BLS key JWK");
+        assert_eq!(as_bls, &knew);
+
         let _ = as_bls
             .to_jwk_public(None)
             .expect("Error converting key to JWK");
