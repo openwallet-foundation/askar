@@ -90,7 +90,6 @@ impl KeyAlg {
             Self::Aes(AesTypes::A256Kw) => "a256kw",
             Self::Bls12_381(BlsCurves::G1) => "bls12381g1",
             Self::Bls12_381(BlsCurves::G2) => "bls12381g2",
-            Self::Bls12_381(BlsCurves::G1G2) => "bls12381g1g2",
             Self::Chacha20(Chacha20Types::C20P) => "c20p",
             Self::Chacha20(Chacha20Types::XC20P) => "xc20p",
             Self::Ed25519 => "ed25519",
@@ -125,7 +124,6 @@ impl FromStr for KeyAlg {
             a if a == "a256kw" || a == "aes256kw" => Ok(Self::Aes(AesTypes::A256Kw)),
             a if a == "bls12381g1" => Ok(Self::Bls12_381(BlsCurves::G1)),
             a if a == "bls12381g2" => Ok(Self::Bls12_381(BlsCurves::G2)),
-            a if a == "bls12381g1g2" => Ok(Self::Bls12_381(BlsCurves::G1G2)),
             a if a == "c20p" || a == "chacha20poly1305" => Ok(Self::Chacha20(Chacha20Types::C20P)),
             a if a == "xc20p" || a == "xchacha20poly1305" => {
                 Ok(Self::Chacha20(Chacha20Types::XC20P))
@@ -238,8 +236,6 @@ pub enum BlsCurves {
     G1,
     /// G2 curve
     G2,
-    /// G1 + G2 curves
-    G1G2,
 }
 
 /// Supported algorithms for (X)ChaCha20-Poly1305

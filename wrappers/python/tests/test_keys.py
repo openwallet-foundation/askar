@@ -42,24 +42,22 @@ def test_symmetric(key_alg: KeyAlg):
 
 def test_bls_keygen():
     key = Key.from_seed(
-        KeyAlg.BLS12_381_G1G2,
+        KeyAlg.BLS12_381_G1,
         b"testseed000000000000000000000001",
         method=SeedMethod.BlsKeyGen,
     )
-    assert key.get_jwk_public(KeyAlg.BLS12_381_G1) == (
-        '{"crv":"BLS12381_G1","kty":"OKP","x":'
-        '"h56eYI8Qkq5hitICb-ik8wRTzcn6Fd4iY8aDNVc9q1xoPS3lh4DB_B4wNtar1HrV"}'
-    )
-    assert key.get_jwk_public(KeyAlg.BLS12_381_G2) == (
-        '{"crv":"BLS12381_G2","kty":"OKP",'
-        '"x":"iZIOsO6BgLV72zCrBE2ym3DEhDYcghnUMO4O8IVVD8yS-C_zu6OA3L-ny-AO4'
-        'rbkAo-WuApZEjn83LY98UtoKpTufn4PCUFVQZzJNH_gXWHR3oDspJaCbOajBfm5qj6d"}'
-    )
     assert key.get_jwk_public() == (
-        '{"crv":"BLS12381_G1G2","kty":"OKP",'
-        '"x":"h56eYI8Qkq5hitICb-ik8wRTzcn6Fd4iY8aDNVc9q1xoPS3lh4DB_B4wNtar1H'
-        "rViZIOsO6BgLV72zCrBE2ym3DEhDYcghnUMO4O8IVVD8yS-C_zu6OA3L-ny-AO4rbk"
-        'Ao-WuApZEjn83LY98UtoKpTufn4PCUFVQZzJNH_gXWHR3oDspJaCbOajBfm5qj6d"}'
+        '{"crv":"BLS12381G1","kty":"EC","x":"B56eYI8Qkq5hitICb-ik8wRTzcn6Fd'
+        '4iY8aDNVc9q1xoPS3lh4DB_B4wNtar1HrV","y":"AMindK35vNa3dIH3-BhyxFbzB'
+        'AFkrZgVhVcbyzWUT-ufNOC9EoLGzc_B2yDHLRAw"}'
+    )
+    key2 = key.convert_key(KeyAlg.BLS12_381_G2)
+    assert key2.get_jwk_public() == (
+        '{"crv":"BLS12381G2","kty":"EC","x":"CZIOsO6BgLV72zCrBE2ym3DEhDYcgh'
+        'nUMO4O8IVVD8yS-C_zu6OA3L-ny-AO4rbkAo-WuApZEjn83LY98UtoKpTufn4PCUFV'
+        'QZzJNH_gXWHR3oDspJaCbOajBfm5qj6d","y":"B4HiPHISC7BrjEDsUm0VHax6VD3'
+        'BK2S7m_QVzbxtsqQcVIj2mSuzFz_75vhoeXWxBHmTKzwcHgqkasnOx47xBCAXPiMUT'
+        'Bh-cW9mAQEGlS8uL-TvzlYp47IwhIhVTZQf"}'
     )
 
 

@@ -10,7 +10,7 @@ pub use crate::crypto::{
 };
 use crate::{
     crypto::{
-        alg::{bls::BlsKeyGen, AnyKey, AnyKeyCreate, BlsCurves},
+        alg::{bls::BlsKeyGen, AnyKey, AnyKeyCreate},
         encrypt::KeyAeadInPlace,
         jwk::{FromJwk, ToJwk},
         kdf::{KeyDerivation, KeyExchange},
@@ -164,16 +164,7 @@ impl LocalKey {
 
     /// Get the set of indexed JWK thumbprints for this key or keypair
     pub fn to_jwk_thumbprints(&self) -> Result<Vec<String>, Error> {
-        if self.inner.algorithm() == KeyAlg::Bls12_381(BlsCurves::G1G2) {
-            Ok(vec![
-                self.inner
-                    .to_jwk_thumbprint(Some(KeyAlg::Bls12_381(BlsCurves::G1)))?,
-                self.inner
-                    .to_jwk_thumbprint(Some(KeyAlg::Bls12_381(BlsCurves::G2)))?,
-            ])
-        } else {
-            Ok(vec![self.inner.to_jwk_thumbprint(None)?])
-        }
+        Ok(vec![self.inner.to_jwk_thumbprint(None)?])
     }
 
     /// Map this key or keypair to its equivalent for another key algorithm
