@@ -774,8 +774,8 @@ def key_aead_random_nonce(handle: LocalKeyHandle) -> ByteBuffer:
 def key_aead_encrypt(
     handle: LocalKeyHandle,
     input: Union[bytes, str, ByteBuffer],
-    nonce: Union[bytes, ByteBuffer],
-    aad: Optional[Union[bytes, ByteBuffer]],
+    nonce: Union[bytes, ByteBuffer, None],
+    aad: Optional[Union[bytes, ByteBuffer, None]],
 ) -> Encrypted:
     enc = Encrypted()
     invoke(
@@ -884,8 +884,8 @@ def key_unwrap_key(
     handle: LocalKeyHandle,
     alg: Union[str, KeyAlg],
     ciphertext: Union[bytes, ByteBuffer, Encrypted],
-    nonce: Union[bytes, ByteBuffer],
-    tag: Optional[Union[bytes, ByteBuffer]],
+    nonce: Union[bytes, ByteBuffer, None],
+    tag: Optional[Union[bytes, ByteBuffer, None]],
 ) -> LocalKeyHandle:
     result = LocalKeyHandle()
     if isinstance(alg, KeyAlg):
