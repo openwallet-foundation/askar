@@ -30,7 +30,7 @@ class Key:
         alg: Union[str, KeyAlg],
         seed: Union[str, bytes],
         *,
-        method: Union[str, SeedMethod] = None,
+        method: Union[str, SeedMethod, None] = None,
     ) -> "Key":
         return cls(bindings.key_from_seed(alg, seed, method))
 
@@ -57,8 +57,10 @@ class Key:
 
     @property
     def algorithm(self) -> KeyAlg:
-        alg = bindings.key_get_algorithm(self._handle)
-        return KeyAlg.from_key_alg(alg)
+        alg_str = bindings.key_get_algorithm(self._handle)
+        alg = KeyAlg.from_key_alg(alg_str)
+        assert alg, "Key without alg is invalid"
+        return alg
 
     @property
     def ephemeral(self) -> bool:
@@ -76,13 +78,13 @@ class Key:
     def get_secret_bytes(self) -> bytes:
         return bytes(bindings.key_get_secret_bytes(self._handle))
 
-    def get_jwk_public(self, alg: Union[str, KeyAlg] = None) -> str:
+    def get_jwk_public(self, alg: Union[str, KeyAlg, None] = None) -> str:
         return bindings.key_get_jwk_public(self._handle, alg)
 
     def get_jwk_secret(self) -> bytes:
         return bytes(bindings.key_get_jwk_secret(self._handle))
 
-    def get_jwk_thumbprint(self, alg: Union[str, KeyAlg] = None) -> str:
+    def get_jwk_thumbprint(self, alg: Union[str, KeyAlg, None] = None) -> str:
         return bindings.key_get_jwk_thumbprint(self._handle, alg)
 
     def aead_params(self) -> AeadParams:
@@ -92,7 +94,7 @@ class Key:
         return bytes(bindings.key_aead_random_nonce(self._handle))
 
     def aead_encrypt(
-        self, message: Union[str, bytes], *, nonce: bytes = None, aad: bytes = None
+        self, message: Union[str, bytes], *, nonce: Optional[bytes] = None, aad: Optional[bytes] = None
     ) -> Encrypted:
         return bindings.key_aead_encrypt(self._handle, message, nonce, aad)
 
@@ -101,22 +103,22 @@ class Key:
         ciphertext: Union[bytes, Encrypted],
         *,
         nonce: bytes,
-        tag: bytes = None,
-        aad: bytes = None,
+        tag: Optional[bytes] = None,
+        aad: Optional[bytes] = None,
     ) -> bytes:
         return bytes(
             bindings.key_aead_decrypt(self._handle, ciphertext, nonce, tag, aad)
         )
 
-    def sign_message(self, message: Union[str, bytes], sig_type: str = None) -> bytes:
+    def sign_message(self, message: Union[str, bytes], sig_type: Optional[str] = None) -> bytes:
         return bytes(bindings.key_sign_message(self._handle, message, sig_type))
 
     def verify_signature(
-        self, message: Union[str, bytes], signature: bytes, sig_type: str = None
+        self, message: Union[str, bytes], signature: bytes, sig_type: Optional[str] = None
     ) -> bool:
         return bindings.key_verify_signature(self._handle, message, signature, sig_type)
 
-    def wrap_key(self, other: "Key", *, nonce: bytes = None) -> Encrypted:
+    def wrap_key(self, other: "Key", *, nonce: Optional[bytes] = None) -> Encrypted:
         return bindings.key_wrap_key(self._handle, other._handle, nonce)
 
     def unwrap_key(
@@ -124,8 +126,8 @@ class Key:
         alg: Union[str, KeyAlg],
         ciphertext: Union[bytes, Encrypted],
         *,
-        nonce: bytes = None,
-        tag: bytes = None,
+        nonce: Optional[bytes] = None,
+        tag: Optional[bytes] = None,
     ) -> "Key":
         return Key(bindings.key_unwrap_key(self._handle, alg, ciphertext, nonce, tag))
 
