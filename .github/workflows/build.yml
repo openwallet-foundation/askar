@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -80,7 +80,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -145,7 +145,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -235,7 +235,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -248,7 +248,7 @@ jobs:
           pip install setuptools wheel twine auditwheel
 
       - name: Fetch library artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: library-${{ matrix.architecture }}
           path: wrappers/python/aries_askar/
@@ -315,7 +315,7 @@ jobs:
     
     steps:
       - name: Fetch Python package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
          path: wrappers/python/dist
          pattern: "python_package-*"
@@ -340,7 +340,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -379,7 +379,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -416,10 +416,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Fetch static libraries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
 
       - run: >
           ./build-xcframework.sh library-aarch64-apple-ios \
@@ -447,7 +447,7 @@ jobs:
     needs: [build-android]
     steps:
       - name: Fetch libraries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
 
       - run: |
           sudo mkdir ./libs
@@ -484,13 +484,13 @@ jobs:
 
     steps:
       - name: Fetch Android libraries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: android-libraries
           path: mobile/android/
 
       - name: Fetch iOS Framework
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aries_askar.xcframework
           path: mobile/ios/
