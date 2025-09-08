@@ -54,7 +54,7 @@ aes-core = { package = "aes", version = "0.8", default-features = false, optiona
 aes-gcm = { version = "0.10", default-features = false, features = [
     "aes",
 ], optional = true }
-arbitrary = { version = "1.0", optional = true, features = ["derive"] }
+arbitrary = { version = "1.4", optional = true, features = ["derive"] }
 argon2 = { version = "0.5", default-features = false, features = [
     "alloc",
     "password-hash",
@@ -106,7 +106,7 @@ serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde-json-core = { version = "0.6", default-features = false }
 sha2 = { version = "0.10", default-features = false }
 subtle = "2.4"
-uuid = { version = "1.17", default-features = false, optional = true, features = [
+uuid = { version = "1.18", default-features = false, optional = true, features = [
     "v4",
 ] }
 x25519-dalek = { version = "2", default-features = false, features = [
