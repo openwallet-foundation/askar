@@ -1,7 +1,7 @@
 name: "Aries-Askar"
 
 env:
-  RUST_VERSION: "1.82.0"
+  RUST_VERSION: "1.85.0"
   RUST_NIGHTLY_VERSION: "nightly"
   CROSS_VERSION: "0.2.4"
   TEST_FEATURES: ""
@@ -307,20 +307,20 @@ jobs:
     needs: [build-py]
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish-python-wrapper == 'true')
     permissions:
-      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
-      
+      id-token: write # IMPORTANT: this permission is mandatory for trusted publishing
+
     runs-on: ubuntu-latest
     environment:
       name: pypi
       url: https://pypi.org/p/aries-askar
-    
+
     steps:
       - name: Fetch Python package
         uses: actions/download-artifact@v5
         with:
-         path: wrappers/python/dist
-         pattern: "python_package-*"
-         merge-multiple: true
+          path: wrappers/python/dist
+          pattern: "python_package-*"
+          merge-multiple: true
       - run: ls -R wrappers/python/dist
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
