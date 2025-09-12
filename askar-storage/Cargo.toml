@@ -1,6 +1,6 @@
 [package]
 name = "askar-storage"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Hyperledger Aries Contributors <aries@lists.hyperledger.org>"]
 edition = "2021"
 description = "Askar secure storage support"

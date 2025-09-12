@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "aries-askar"
-version = "0.4.4"
+version = "0.4.5"
 authors = ["Hyperledger Aries Contributors <aries@lists.hyperledger.org>"]
 edition = "2021"
 description = "Askar cryptographic primitives and secure storage"
@@ -53,13 +53,13 @@ zeroize = "1.5"
 [dependencies.askar-crypto]
 features = ["all_keys", "any_key", "argon2", "crypto_box", "std"]
 path = "./askar-crypto"
-version = "0.3.2"
+version = "0.3.7"
 
 [dependencies.askar-storage]
 default-features = false
 features = ["any"]
 path = "./askar-storage"
-version = "0.2.0"
+version = "0.2.4"
 
 [dev-dependencies]
 criterion = { version = "0.7", features = ["html_reports"] }
