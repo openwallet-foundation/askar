@@ -410,7 +410,7 @@ ErrorCode askar_key_wrap_key(LocalKeyHandle handle,
                              struct EncryptedBuffer *out);
 
 /**
- * Migrate an sqlite wallet from an indy-sdk structure to an aries-askar structure.
+ * Migrate an sqlite wallet from an indy-sdk structure to an Askar structure.
  * It is important to note that this does not do any post-processing. If the record values, tags,
  * names, etc. have changed, it must be processed manually afterwards. This script does the following:
  *
@@ -560,6 +560,13 @@ ErrorCode askar_store_copy(StoreHandle handle,
                            void (*cb)(CallbackId cb_id, ErrorCode err, StoreHandle handle),
                            CallbackId cb_id);
 
+ErrorCode askar_store_copy_profile(StoreHandle from_handle,
+                                   StoreHandle to_handle,
+                                   FfiStr from_profile,
+                                   FfiStr to_profile,
+                                   void (*cb)(CallbackId cb_id, ErrorCode err),
+                                   CallbackId cb_id);
+
 ErrorCode askar_store_create_profile(StoreHandle handle,
                                      FfiStr profile,
                                      void (*cb)(CallbackId cb_id,
@@ -613,6 +620,12 @@ ErrorCode askar_store_remove(FfiStr spec_uri,
 ErrorCode askar_store_remove_profile(StoreHandle handle,
                                      FfiStr profile,
                                      void (*cb)(CallbackId cb_id, ErrorCode err, int8_t removed),
+                                     CallbackId cb_id);
+
+ErrorCode askar_store_rename_profile(StoreHandle handle,
+                                     FfiStr from_profile,
+                                     FfiStr to_profile,
+                                     void (*cb)(CallbackId cb_id, ErrorCode err, int8_t renamed),
                                      CallbackId cb_id);
 
 ErrorCode askar_store_set_default_profile(StoreHandle handle,
