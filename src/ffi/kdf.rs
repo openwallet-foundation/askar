@@ -25,11 +25,11 @@ pub extern "C" fn askar_argon2_derive_password(
 
         let mut argon2 = Argon2::new(password.as_slice(), salt.as_slice(), params)?;
 
-        let mut key_out: Vec<u8> = vec![];
+        let mut key_out = [0u8; 32];
 
         argon2.derive_key_bytes(key_out.as_mut_slice())?;
 
-        unsafe { *out = SecretBuffer::from_secret(key_out) };
+        unsafe { *out = SecretBuffer::from_secret(key_out.as_slice()) };
 
         Ok(ErrorCode::Success)
     }

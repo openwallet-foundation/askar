@@ -8,6 +8,7 @@ from .store import Entry, EntryList, KeyEntry, KeyEntryList, Session, Store
 from .types import KeyAlg, SeedMethod
 from . import crypto_box
 from . import ecdh
+from . import kdf
 
 __all__ = (
     "crypto_box",

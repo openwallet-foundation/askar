@@ -152,6 +152,9 @@ macro_rules! err_msg {
     ($kind:ident, $msg:expr) => {
         $crate::Error::from_msg($crate::ErrorKind::$kind, $msg)
     };
+    ($kind:ident, $($args:tt)+) => {
+        $crate::error::Error::from_msg($crate::error::ErrorKind::$kind, format!($($args)+))
+    };
 }
 
 #[cfg(feature = "std")]
