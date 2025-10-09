@@ -48,25 +48,6 @@ typedef struct Option_EnabledCallback Option_EnabledCallback;
 
 typedef struct Option_FlushCallback Option_FlushCallback;
 
-typedef struct SecretBuffer {
-  int64_t len;
-  uint8_t *data;
-} SecretBuffer;
-
-typedef struct FfiResultList_Entry FfiEntryList;
-
-typedef struct ArcHandle_FfiEntryList {
-  const FfiEntryList *_0;
-} ArcHandle_FfiEntryList;
-
-typedef struct ArcHandle_FfiEntryList EntryListHandle;
-
-typedef struct ArcHandle_LocalKey {
-  const struct LocalKey *_0;
-} ArcHandle_LocalKey;
-
-typedef struct ArcHandle_LocalKey LocalKeyHandle;
-
 /**
  * ByteBuffer is a struct that represents an array of bytes to be sent over the FFI boundaries.
  * There are several cases when you might want to use this, but the primary one for us
@@ -152,6 +133,25 @@ typedef struct ByteBuffer {
   int64_t len;
   uint8_t *data;
 } ByteBuffer;
+
+typedef struct SecretBuffer {
+  int64_t len;
+  uint8_t *data;
+} SecretBuffer;
+
+typedef struct FfiResultList_Entry FfiEntryList;
+
+typedef struct ArcHandle_FfiEntryList {
+  const FfiEntryList *_0;
+} ArcHandle_FfiEntryList;
+
+typedef struct ArcHandle_FfiEntryList EntryListHandle;
+
+typedef struct ArcHandle_LocalKey {
+  const struct LocalKey *_0;
+} ArcHandle_LocalKey;
+
+typedef struct ArcHandle_LocalKey LocalKeyHandle;
 
 typedef struct EncryptedBuffer {
   struct SecretBuffer buffer;
@@ -240,6 +240,18 @@ typedef void (*LogCallback)(const void *context,
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+/**
+ * ## Derive password using Argon2
+ *
+ * If the first provided argument is 1, it will use `PARAMS_INTERACTTIVE` and otherwise it will
+ * fallback to `PARAMS_MODERATE`.
+ *
+ */
+ErrorCode askar_argon2_derive_password(int8_t parameter,
+                                       struct ByteBuffer password,
+                                       struct ByteBuffer salt,
+                                       struct SecretBuffer *out);
 
 void askar_buffer_free(struct SecretBuffer buffer);
 

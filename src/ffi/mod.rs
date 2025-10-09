@@ -18,6 +18,7 @@ use self::handle::ResourceHandle;
 mod macros;
 
 mod error;
+mod kdf;
 mod key;
 mod log;
 pub(crate) mod result_list;
