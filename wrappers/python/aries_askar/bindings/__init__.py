@@ -80,6 +80,24 @@ def version() -> str:
     """Get the version of the installed library."""
     return get_library().version()
 
+def argon2_derive_password(
+    parameter: int,
+    password: Union[bytes, str, ByteBuffer],
+    salt: Union[bytes, str, ByteBuffer],
+) -> ByteBuffer:
+    buf = ByteBuffer()
+    invoke(
+        "askar_argon2_derive_password",
+        (c_int8, FfiByteBuffer, FfiByteBuffer, POINTER(ByteBuffer)),
+        parameter,
+        password,
+        salt,
+        byref(buf)
+    )
+    return buf
+
+
+
 
 async def store_open(
     uri: str,
