@@ -113,4 +113,4 @@ x25519-dalek = { version = "2", default-features = false, features = [
     "static_secrets",
     "zeroize",
 ], optional = true }
-zeroize = { version = "1.5", features = ["zeroize_derive"] }
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
