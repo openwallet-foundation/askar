@@ -15,6 +15,9 @@ from ..types import EntryOperation, KeyAlg, KeyBackend, SeedMethod
 
 from .lib import (
     AeadParams,
+    Argon2Algorithm,
+    Argon2Config,
+    Argon2Version,
     ByteBuffer,
     Encrypted,
     FfiByteBuffer,
@@ -80,23 +83,34 @@ def version() -> str:
     """Get the version of the installed library."""
     return get_library().version()
 
+
 def argon2_derive_password(
-    parameter: int,
+    parameter: int | Argon2Config,
     password: Union[bytes, str, ByteBuffer],
     salt: Union[bytes, str, ByteBuffer],
 ) -> ByteBuffer:
     buf = ByteBuffer()
+    if isinstance(parameter, Argon2Config):
+        config = byref(parameter)
+        parameter = -1
+    else:
+        config = None
     invoke(
         "askar_argon2_derive_password",
-        (c_int8, FfiByteBuffer, FfiByteBuffer, POINTER(ByteBuffer)),
+        (
+            c_int8,
+            FfiByteBuffer,
+            FfiByteBuffer,
+            POINTER(Argon2Config),
+            POINTER(ByteBuffer),
+        ),
         parameter,
         password,
         salt,
-        byref(buf)
+        config,
+        byref(buf),
     )
     return buf
-
-
 
 
 async def store_open(
