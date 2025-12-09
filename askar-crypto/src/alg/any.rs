@@ -40,7 +40,7 @@ use super::p384::{self, P384KeyPair};
 use super::{HasKeyAlg, HasKeyBackend, KeyAlg};
 use crate::{
     backend::KeyBackend,
-    buffer::{ResizeBuffer, SecretBytes, WriteBuffer},
+    buffer::{ResizeBuffer, WriteBuffer},
     encrypt::{KeyAeadInPlace, KeyAeadParams},
     error::Error,
     jwk::{FromJwk, JwkEncoder, JwkParts, ToJwk},
@@ -84,23 +84,12 @@ impl AnyKey {
     pub fn key_type_id(&self) -> TypeId {
         self.0.as_any().type_id()
     }
-
-    #[inline]
-    pub fn key_id(&self) -> Result<SecretBytes, Error> {
-        get_key_id_any(self)
-    }
 }
 
 /// Create `AnyKey` instances from various sources
 pub trait AnyKeyCreate: Sized {
     /// Generate a new key from a key material generator for the given key algorithm.
     fn generate_with_rng(alg: KeyAlg, rng: impl KeyMaterial) -> Result<Self, Error>;
-
-    /// Generate a new key with an id for the given key algorithm.
-    fn generate_for_hardware(alg: KeyAlg) -> Result<Self, Error>;
-
-    /// Get a key by id for hardware-based key
-    fn get_with_id(alg: KeyAlg, id: &str) -> Result<Self, Error>;
 
     /// Generate a new random key for the given key algorithm.
     #[cfg(feature = "getrandom")]
@@ -142,14 +131,6 @@ impl AnyKeyCreate for Box<AnyKey> {
         generate_any_with_rng(alg, rng)
     }
 
-    fn generate_for_hardware(alg: KeyAlg) -> Result<Self, Error> {
-        generate_any_for_hardware(alg)
-    }
-
-    fn get_with_id(alg: KeyAlg, id: &str) -> Result<Self, Error> {
-        get_any_with_id(alg, id)
-    }
-
     fn from_public_bytes(alg: KeyAlg, public: &[u8]) -> Result<Self, Error> {
         from_public_bytes_any(alg, public)
     }
@@ -187,14 +168,6 @@ impl AnyKeyCreate for Box<AnyKey> {
 impl AnyKeyCreate for Arc<AnyKey> {
     fn generate_with_rng(alg: KeyAlg, rng: impl KeyMaterial) -> Result<Self, Error> {
         generate_any_with_rng(alg, rng)
-    }
-
-    fn generate_for_hardware(alg: KeyAlg) -> Result<Self, Error> {
-        generate_any_for_hardware(alg)
-    }
-
-    fn get_with_id(alg: KeyAlg, id: &str) -> Result<Self, Error> {
-        get_any_with_id(alg, id)
     }
 
     fn from_public_bytes(alg: KeyAlg, public: &[u8]) -> Result<Self, Error> {
@@ -278,18 +251,6 @@ fn generate_any_with_rng<R: AllocKey>(alg: KeyAlg, rng: impl KeyMaterial) -> Res
             "Unsupported algorithm for key generation with rng"
         )),
     }
-}
-
-#[inline]
-fn get_any_with_id<R: AllocKey>(alg: KeyAlg, _id: &str) -> Result<R, Error> {
-    let key = match alg {
-        _ => Err(err_msg!(
-            Unsupported,
-            "Unsupported algorithm for key retrieval by id"
-        )),
-    }?;
-
-    Ok(key)
 }
 
 #[inline]
@@ -538,14 +499,6 @@ fn convert_key_any<R: AllocKey>(key: &AnyKey, alg: KeyAlg) -> Result<R, Error> {
     }
 }
 
-#[inline]
-fn get_key_id_any(key: &AnyKey) -> Result<SecretBytes, Error> {
-    match key.algorithm() {
-        #[allow(unreachable_patterns)]
-        _ => Err(err_msg!(Unsupported, "Unsupported get key id operation")),
-    }
-}
-
 impl FromJwk for Box<AnyKey> {
     fn from_jwk_parts(jwk: JwkParts<'_>) -> Result<Self, Error> {
         from_jwk_any(jwk)
@@ -735,7 +688,6 @@ impl AnyKey {
             Ed25519,
             K256,
             P256,
-            P256Hardware,
             P384,
             X25519,
             "Public key export is not supported for this key type"
@@ -841,7 +793,6 @@ impl ToJwk for AnyKey {
             Ed25519,
             K256,
             P256,
-            P256Hardware,
             P384,
             X25519,
             "JWK export is not supported for this key type"
@@ -863,7 +814,6 @@ impl KeySign for AnyKey {
             Ed25519,
             K256,
             P256,
-            P256Hardware,
             P384,
             "Signing is not supported for this key type"
         }?;
@@ -884,7 +834,6 @@ impl KeySigVerify for AnyKey {
             Ed25519,
             K256,
             P256,
-            P256Hardware,
             P384,
             "Signature verification is not supported for this key type"
         }?;

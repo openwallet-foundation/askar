@@ -9,16 +9,12 @@ pub enum KeyBackend {
     /// Software based keys
     #[default]
     Software,
-
-    /// Keys generated and store in the secure element of the device
-    SecureElement,
 }
 
 impl From<KeyBackend> for &str {
     fn from(key_backend: KeyBackend) -> Self {
         match key_backend {
             KeyBackend::Software => "software",
-            KeyBackend::SecureElement => "secure_element",
         }
     }
 }
@@ -29,7 +25,6 @@ impl FromStr for KeyBackend {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "software" => Ok(Self::Software),
-            "secure_element" => Ok(Self::SecureElement),
             _ => Err(err_msg!(Invalid, "Invalid key backend.")),
         }
     }

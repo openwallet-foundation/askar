@@ -16,18 +16,13 @@ pub const LEVEL_INTERACTIVE: &str = "13:int";
 pub const LEVEL_MODERATE: &str = "13:mod";
 
 /// Argon2i derivation methods
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash)]
 pub enum Level {
     /// Interactive method
     Interactive,
     /// Stronger Moderate method
+    #[default]
     Moderate,
-}
-
-impl Default for Level {
-    fn default() -> Self {
-        Self::Moderate
-    }
 }
 
 impl Level {

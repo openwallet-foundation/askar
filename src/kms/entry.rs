@@ -1,10 +1,9 @@
 use super::local_key::LocalKey;
 use crate::{
-    crypto::{alg::AnyKey, alg::KeyAlg, buffer::SecretBytes, jwk::FromJwk},
+    crypto::{alg::AnyKey, buffer::SecretBytes, jwk::FromJwk},
     entry::{Entry, EntryTag},
     error::Error,
 };
-use std::str::FromStr;
 
 /// Key reference variant
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -15,9 +14,7 @@ pub enum KeyReference {
 
 impl From<&str> for KeyReference {
     fn from(value: &str) -> Self {
-        match value {
-            any => Self::Any(String::from(any)),
-        }
+        Self::Any(String::from(value))
     }
 }
 
@@ -54,16 +51,6 @@ impl KeyParams {
             .map_err(|e| err_msg!(Unexpected, "Error serializing key params: {}", e))?;
 
         Ok(SecretBytes::from(bytes))
-    }
-
-    pub(crate) fn to_id(&self) -> Result<String, Error> {
-        self.data
-            .as_ref()
-            .and_then(|d| d.as_opt_str().map(ToOwned::to_owned))
-            .ok_or(err_msg!(
-                Input,
-                "Could not convert key data to string for id"
-            ))
     }
 
     pub(crate) fn from_slice(params: &[u8]) -> Result<KeyParams, Error> {
@@ -149,12 +136,10 @@ impl KeyEntry {
     /// Create a local key instance from this key storage entry
     pub fn load_local_key(&self) -> Result<LocalKey, Error> {
         if let Some(key_data) = self.params.data.as_ref() {
-            match &self.params.reference {
-                _ => Ok(LocalKey {
-                    inner: Box::<AnyKey>::from_jwk_slice(key_data.as_ref())?,
-                    ephemeral: false,
-                }),
-            }
+            Ok(LocalKey {
+                inner: Box::<AnyKey>::from_jwk_slice(key_data.as_ref())?,
+                ephemeral: false,
+            })
         } else {
             Err(err_msg!("Missing key data"))
         }

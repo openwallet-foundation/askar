@@ -37,7 +37,6 @@ pub extern "C" fn askar_key_generate(
 
         let key = match backend {
             KeyBackend::Software => LocalKey::generate_with_rng(alg, ephemeral != 0),
-            KeyBackend::SecureElement => LocalKey::generate_for_hardware(alg, ephemeral != 0)
         }?;
 
         unsafe { *out = LocalKeyHandle::create(key) };
@@ -584,7 +583,7 @@ pub extern "C" fn askar_key_get_supported_backends(out: *mut StringListHandle) -
         trace!("Retrieving supported key backends");
         check_useful_c_ptr!(out);
 
-        let mut backends = vec![KeyBackend::Software];
+        let backends = [KeyBackend::Software];
 
         let backends: Vec<String> = backends
             .iter()

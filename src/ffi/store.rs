@@ -19,7 +19,6 @@ use crate::{
     error::Error,
     ffi::result_list::FfiStringList,
     future::spawn_ok,
-    kms::KeyReference,
     store::{PassKey, Session, Store, StoreKeyMethod},
 };
 

@@ -36,21 +36,6 @@ impl LocalKey {
         Ok(Self { inner, ephemeral })
     }
 
-    /// Create a new random keypair backed by hardware
-    pub fn generate_for_hardware(alg: KeyAlg, ephemeral: bool) -> Result<Self, Error> {
-        let inner = Box::<AnyKey>::generate_for_hardware(alg)?;
-        Ok(Self { inner, ephemeral })
-    }
-
-    /// Get a local key by id
-    pub fn from_id(alg: KeyAlg, id: &str) -> Result<Self, Error> {
-        let inner = Box::<AnyKey>::get_with_id(alg, id)?;
-        Ok(Self {
-            inner,
-            ephemeral: false,
-        })
-    }
-
     /// Create a new deterministic key or keypair
     pub fn from_seed(alg: KeyAlg, seed: &[u8], method: Option<&str>) -> Result<Self, Error> {
         let inner = match method {
