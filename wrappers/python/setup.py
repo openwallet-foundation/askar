@@ -39,7 +39,7 @@ if __name__ == "__main__":
                 "libaries_askar.so",
             ]
         },
-        python_requires=">=3.6.3",
+        python_requires=">=3.10.0",
         classifiers=[
             "Programming Language :: Python :: 3",
             "License :: OSI Approved :: Apache Software License",
