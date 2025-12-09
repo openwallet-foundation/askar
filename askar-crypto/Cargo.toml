@@ -34,8 +34,8 @@ std_rng = ["getrandom", "rand/std", "rand/std_rng"]
 [dev-dependencies]
 base64 = { version = "0.22", default-features = false, features = ["alloc"] }
 ciborium = "0.2"
-criterion = "0.7"
-hex-literal = "0.4"
+criterion = "0.8"
+hex-literal = "1.1"
 serde-json-core = { version = "0.6", default-features = false, features = [
     "std",
 ] }
@@ -113,4 +113,4 @@ x25519-dalek = { version = "2", default-features = false, features = [
     "static_secrets",
     "zeroize",
 ], optional = true }
-zeroize = { version = "1.5", features = ["zeroize_derive"] }
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
