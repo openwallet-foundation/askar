@@ -332,9 +332,6 @@ jobs:
     needs: [checks]
     runs-on: macos-latest
 
-    env:
-      FEATURES: "mobile_secure_element"
-
     strategy:
       matrix:
         target: [aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios]
@@ -362,9 +359,6 @@ jobs:
   build-android:
     name: Build library (Android)
     needs: [checks]
-
-    env:
-      FEATURES: "mobile_secure_element"
 
     runs-on: ubuntu-latest
 

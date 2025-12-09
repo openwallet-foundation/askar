@@ -586,10 +586,6 @@ pub extern "C" fn askar_key_get_supported_backends(out: *mut StringListHandle) -
 
         let mut backends = vec![KeyBackend::Software];
 
-        if cfg!(feature = "mobile_secure_element") {
-            backends.push(KeyBackend::SecureElement);
-        }
-
         let backends: Vec<String> = backends
             .iter()
             .map(|b| <KeyBackend as Into<&str>>::into(b.clone()).to_owned())

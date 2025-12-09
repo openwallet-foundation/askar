@@ -48,17 +48,13 @@ mod ec_common;
 #[cfg_attr(docsrs, doc(cfg(feature = "k256")))]
 pub mod k256;
 
-#[cfg(any(feature = "p256", feature = "p256_hardware"))]
-#[cfg_attr(docsrs, doc(cfg(any(feature = "p256", feature = "p256_hardware"))))]
+#[cfg(feature = "p256")]
+#[cfg_attr(docsrs, doc(cfg(feature = "p256")))]
 pub mod p256;
 
 #[cfg(feature = "p384")]
 #[cfg_attr(docsrs, doc(cfg(feature = "p384")))]
 pub mod p384;
-
-#[cfg(feature = "p256_hardware")]
-#[cfg_attr(docsrs, doc(cfg(feature = "p256_hardware")))]
-pub mod p256_hardware;
 
 /// Supported key algorithms
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Zeroize)]

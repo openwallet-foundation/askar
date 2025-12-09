@@ -9,9 +9,6 @@ use std::str::FromStr;
 /// Key reference variant
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum KeyReference {
-    /// Stored in a mobile secure element
-    MobileSecureElement,
-
     /// Any other reference as fallback
     Any(String),
 }
@@ -19,7 +16,6 @@ pub enum KeyReference {
 impl From<&str> for KeyReference {
     fn from(value: &str) -> Self {
         match value {
-            "mobile_secure_element" => Self::MobileSecureElement,
             any => Self::Any(String::from(any)),
         }
     }
@@ -28,7 +24,6 @@ impl From<&str> for KeyReference {
 impl From<KeyReference> for String {
     fn from(key_reference: KeyReference) -> Self {
         match key_reference {
-            KeyReference::MobileSecureElement => String::from("mobile_secure_element"),
             KeyReference::Any(s) => s,
         }
     }
@@ -155,15 +150,6 @@ impl KeyEntry {
     pub fn load_local_key(&self) -> Result<LocalKey, Error> {
         if let Some(key_data) = self.params.data.as_ref() {
             match &self.params.reference {
-                Some(KeyReference::MobileSecureElement) => {
-                    let id = self.params.to_id()?;
-                    let alg = self
-                        .alg
-                        .as_ref()
-                        .ok_or(err_msg!(Input, "Algorithm is required to get key by id"))?;
-                    let alg = KeyAlg::from_str(alg)?;
-                    Ok(LocalKey::from_id(alg, &id)?)
-                }
                 _ => Ok(LocalKey {
                     inner: Box::<AnyKey>::from_jwk_slice(key_data.as_ref())?,
                     ephemeral: false,

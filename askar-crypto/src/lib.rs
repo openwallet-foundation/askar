@@ -5,12 +5,6 @@
 #![deny(missing_docs, missing_debug_implementations, rust_2018_idioms)]
 #![allow(unused_extern_crates)]
 
-// `extern crate secure_env` is used here to include a symbol `ANativeActivity_onCreate`
-// So we can get a pointer to `activity` on android, which is required to initialize the
-// binding to the JVM.
-#[cfg(all(target_os = "android", feature = "p256_hardware"))]
-extern crate secure_env;
-
 #[cfg(feature = "alloc")]
 extern crate alloc;
 

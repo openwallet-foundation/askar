@@ -37,9 +37,6 @@ use super::p256::{self, P256KeyPair};
 #[cfg(feature = "p384")]
 use super::p384::{self, P384KeyPair};
 
-#[cfg(feature = "p256_hardware")]
-use super::p256_hardware::P256HardwareKeyPair;
-
 use super::{HasKeyAlg, HasKeyBackend, KeyAlg};
 use crate::{
     backend::KeyBackend,
@@ -57,7 +54,6 @@ use crate::{
     feature = "k256",
     feature = "p256",
     feature = "p384",
-    feature = "p256_hardware"
 ))]
 use super::EcCurves;
 
@@ -289,27 +285,8 @@ fn generate_any_with_rng<R: AllocKey>(alg: KeyAlg, rng: impl KeyMaterial) -> Res
 }
 
 #[inline]
-fn generate_any_for_hardware<R: AllocKey>(alg: KeyAlg) -> Result<R, Error> {
-    match alg {
-        #[cfg(feature = "p256_hardware")]
-        KeyAlg::EcCurve(EcCurves::Secp256r1) => P256HardwareKeyPair::generate(
-            uuid::Uuid::new_v4()
-                .hyphenated()
-                .encode_lower(&mut uuid::Uuid::encode_buffer()),
-        )
-        .map(R::alloc_key),
-        _ => Err(err_msg!(
-            Unsupported,
-            "Unsupported algorithm for key generation with id"
-        )),
-    }
-}
-
-#[inline]
 fn get_any_with_id<R: AllocKey>(alg: KeyAlg, _id: &str) -> Result<R, Error> {
     let key = match alg {
-        #[cfg(feature = "p256_hardware")]
-        KeyAlg::EcCurve(EcCurves::Secp256r1) => P256HardwareKeyPair::from_id(_id).map(R::alloc_key),
         _ => Err(err_msg!(
             Unsupported,
             "Unsupported algorithm for key retrieval by id"
@@ -568,10 +545,6 @@ fn convert_key_any<R: AllocKey>(key: &AnyKey, alg: KeyAlg) -> Result<R, Error> {
 #[inline]
 fn get_key_id_any(key: &AnyKey) -> Result<SecretBytes, Error> {
     match key.algorithm() {
-        #[cfg(feature = "p256_hardware")]
-        KeyAlg::EcCurve(EcCurves::Secp256r1) => {
-            Ok(key.assume::<P256HardwareKeyPair>().key_id.clone())
-        }
         #[allow(unreachable_patterns)]
         _ => Err(err_msg!(Unsupported, "Unsupported get key id operation")),
     }
@@ -719,13 +692,6 @@ macro_rules! match_key_alg {
         #[cfg(feature = "p256")]
         if $alg == KeyAlg::EcCurve(EcCurves::Secp256r1) && $key.backend() == KeyBackend::Software {
             return Ok($key.assume::<P256KeyPair>())
-        }
-        match_key_alg!(@ $($rest)*; $key, $alg)
-    }};
-    (@ P256Hardware $($rest:ident)*; $key:ident, $alg:ident) => {{
-        #[cfg(feature = "p256_hardware")]
-        if $alg == KeyAlg::EcCurve(EcCurves::Secp256r1) && $key.backend() == KeyBackend::SecureElement {
-            return Ok($key.assume::<P256HardwareKeyPair>())
         }
         match_key_alg!(@ $($rest)*; $key, $alg)
     }};
