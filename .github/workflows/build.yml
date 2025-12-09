@@ -217,7 +217,7 @@ jobs:
       matrix:
         architecture:
           [linux-aarch64, linux-x86_64, darwin-universal, windows-x86_64]
-        python-version: ["3.8"]
+        python-version: ["3.10"]
         include:
           - os: ubuntu-latest
             architecture: linux-aarch64

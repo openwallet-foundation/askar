@@ -134,6 +134,34 @@ typedef struct ByteBuffer {
   uint8_t *data;
 } ByteBuffer;
 
+typedef struct Argon2Config {
+  /**
+   * The algorithm is determined by a numeric code.
+   * 0: argon2d
+   * 1: argon2i
+   * 2: argon2id
+   */
+  int32_t algorithm;
+  /**
+   * The version is determined by a numeric code.
+   * 16: version 0x10
+   * 19: version 0x13
+   */
+  int32_t version;
+  /**
+   * The level of parallelism.
+   */
+  int32_t parallelism;
+  /**
+   * The memory cost, measured in kibibytes.
+   */
+  int32_t mem_cost;
+  /**
+   * The time cost, measured in iterations.
+   */
+  int32_t time_cost;
+} Argon2Config;
+
 typedef struct SecretBuffer {
   int64_t len;
   uint8_t *data;
@@ -244,13 +272,16 @@ extern "C" {
 /**
  * ## Derive password using Argon2
  *
- * If the first provided argument is 1, it will use `PARAMS_INTERACTTIVE` and otherwise it will
- * fallback to `PARAMS_MODERATE`.
+ * The `parameters` argument determines the Argon2 derivation parameters:
+ * `-1`: apply the custom parameters contained in `config`, otherwise `config` must be a null pointer.
+ * `0`: use the `PARAMS_MODERATE` parameters
+ * `1`: use the `PARAMS_INTERACTIVE` parameters
  *
  */
 ErrorCode askar_argon2_derive_password(int8_t parameters,
                                        struct ByteBuffer password,
                                        struct ByteBuffer salt,
+                                       const struct Argon2Config *config,
                                        struct SecretBuffer *out);
 
 void askar_buffer_free(struct SecretBuffer buffer);

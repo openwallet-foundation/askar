@@ -33,6 +33,7 @@ from ctypes import (
     c_void_p,
 )
 from ctypes.util import find_library
+from enum import IntEnum
 from typing import Callable, Optional, Tuple, Union
 from weakref import finalize, ref
 
@@ -713,3 +714,46 @@ class Encrypted(Structure):
     def _cleanup(cls, buffer: RawBuffer):
         """Call the byte buffer destructor when this instance is released."""
         Lib().invoke_dtor("askar_buffer_free", buffer)
+
+
+class Argon2Algorithm(IntEnum):
+    ARGON2D = 0
+    ARGON2I = 1
+    ARGON2ID = 2
+
+
+class Argon2Version(IntEnum):
+    VERSION_0x10 = 16
+    VERSION_0x13 = 19
+
+
+class Argon2Config(Structure):
+    """Argon2 custom configuration."""
+
+    _fields_ = [
+        ("algorithm", c_int32),
+        ("version", c_int32),
+        ("parallelism", c_int32),
+        ("mem_cost", c_int32),
+        ("time_cost", c_int32),
+    ]
+
+    def __init__(
+        self,
+        *args,
+        algorithm: Argon2Algorithm,
+        version: Argon2Version,
+        mem_cost: int,
+        time_cost: int,
+        parallelism: int = 1,
+        **kwargs,
+    ):
+        super().__init__(
+            *args,
+            algorithm=algorithm,
+            version=version,
+            mem_cost=mem_cost,
+            time_cost=time_cost,
+            parallelism=parallelism,
+            **kwargs,
+        )
