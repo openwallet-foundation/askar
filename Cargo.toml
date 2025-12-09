@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "aries-askar"
-version = "0.4.6"
+version = "0.5.0"
 authors = ["Hyperledger Aries Contributors <aries@lists.hyperledger.org>"]
 edition = "2021"
 description = "Askar cryptographic primitives and secure storage"
