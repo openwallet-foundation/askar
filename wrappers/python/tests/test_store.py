@@ -458,6 +458,28 @@ async def test_copy_profile(store: Store):
         assert entries[0].name == TEST_ENTRY["name"]
 
 
+async def test_open_connections(store: Store):
+    sessions = await store.active_sessions()
+    scans = await store.active_sessions()
+    assert len(sessions) == 0
+    assert len(scans) == 0
+
+    async with store as _session:
+        sessions = await store.active_sessions()
+        scans = await store.active_scans()
+    assert len(sessions) == 1
+    assert len(scans) == 0
+    print(sessions)
+
+    scan = store.scan(TEST_ENTRY["category"], {"~plaintag": "a", "enctag": "b"})
+    await scan.load()
+    sessions = await store.active_sessions()
+    scans = await store.active_scans()
+    assert len(sessions) == 0
+    assert len(scans) == 1
+    del scan
+
+
 def test_entry_cache():
     instances = WeakKeyDictionary()
 

@@ -8,16 +8,14 @@ try:
 except ImportError:
     import json
 
-from ctypes import POINTER, byref, c_int8, c_int32, c_int64
+from ctypes import POINTER, byref, c_int8, c_int32, c_int64, c_size_t
 from typing import Optional, Sequence, Union
 
 from ..types import EntryOperation, KeyAlg, KeyBackend, SeedMethod
 
 from .lib import (
     AeadParams,
-    Argon2Algorithm,
     Argon2Config,
-    Argon2Version,
     ByteBuffer,
     Encrypted,
     FfiByteBuffer,
@@ -29,6 +27,7 @@ from .lib import (
 )
 from .handle import (
     EntryListHandle,
+    HandleList,
     KeyEntryListHandle,
     LocalKeyHandle,
     ScanHandle,
@@ -231,7 +230,7 @@ async def store_rename_profile(
 
 async def store_list_profiles(handle: StoreHandle) -> Sequence[str]:
     """List the profile identifiers present in a Store."""
-    handle = await invoke_async(
+    list_handle = await invoke_async(
         "askar_store_list_profiles",
         (StoreHandle,),
         handle,
@@ -241,7 +240,7 @@ async def store_list_profiles(handle: StoreHandle) -> Sequence[str]:
     invoke(
         "askar_string_list_count",
         (StringListHandle, POINTER(c_int32)),
-        handle,
+        list_handle,
         byref(count),
     )
     ret = []
@@ -250,13 +249,41 @@ async def store_list_profiles(handle: StoreHandle) -> Sequence[str]:
         invoke(
             "askar_string_list_get_item",
             (StringListHandle, c_int32, POINTER(StrBuffer)),
-            handle,
+            list_handle,
             idx,
             byref(buf),
         )
         ret.append(str(buf))
 
     return ret
+
+
+async def store_list_sessions(handle: StoreHandle) -> Sequence[SessionHandle]:
+    """List the open sessions for a Store."""
+    list_handle = await invoke_async(
+        "askar_store_list_sessions",
+        (StoreHandle,),
+        handle,
+        return_type=HandleList,
+    )
+    res = []
+    for h in list_handle:
+        res.append(SessionHandle(h))
+    return res
+
+
+async def store_list_scans(handle: StoreHandle) -> Sequence[ScanHandle]:
+    """List the open scans for a Store."""
+    list_handle = await invoke_async(
+        "askar_store_list_scans",
+        (StoreHandle,),
+        handle,
+        return_type=HandleList,
+    )
+    res = []
+    for h in list_handle:
+        res.append(ScanHandle(h))
+    return res
 
 
 async def store_rekey(

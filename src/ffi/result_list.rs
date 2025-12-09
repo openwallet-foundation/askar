@@ -1,7 +1,16 @@
-use std::{ffi::CString, os::raw::c_char, ptr};
+use std::{
+    ffi::CString,
+    mem::ManuallyDrop,
+    os::raw::c_char,
+    ptr::{self, null_mut},
+};
 
 use super::{
-    handle::ArcHandle, key::LocalKeyHandle, secret::SecretBuffer, tags::EntryTagSet, ErrorCode,
+    handle::{ArcHandle, ResourceHandle},
+    key::LocalKeyHandle,
+    secret::SecretBuffer,
+    tags::EntryTagSet,
+    ErrorCode,
 };
 use crate::{entry::Entry, error::Error, kms::KeyEntry};
 
@@ -47,6 +56,45 @@ impl<R> From<Vec<R>> for FfiResultList<R> {
     fn from(rows: Vec<R>) -> Self {
         Self::Rows(rows)
     }
+}
+
+#[repr(C)]
+pub struct FfiHandleList {
+    len: i32,
+    data: *mut usize,
+}
+
+impl FfiHandleList {
+    pub fn invalid() -> Self {
+        Self {
+            len: 0,
+            data: null_mut(),
+        }
+    }
+
+    pub fn free(self) {
+        if self.len > 0 {
+            let ptr = ptr::slice_from_raw_parts_mut(self.data, self.len as usize);
+            drop(unsafe { Box::from_raw(ptr) })
+        }
+    }
+}
+
+impl<T: ResourceHandle> From<Vec<T>> for FfiHandleList {
+    fn from(value: Vec<T>) -> Self {
+        let mut boxed = ManuallyDrop::new(value.into_boxed_slice());
+        let (len, data) = (boxed.len(), boxed.as_mut_ptr());
+        assert!(len < i32::MAX as usize, "exceeded maximum length");
+        FfiHandleList {
+            len: len as i32,
+            data: data as *mut usize,
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_handle_list_free(handle: FfiHandleList) {
+    handle.free();
 }
 
 pub type EntryListHandle = ArcHandle<FfiEntryList>;
