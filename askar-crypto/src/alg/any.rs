@@ -50,11 +50,7 @@ use crate::{
     sign::{KeySigVerify, KeySign, SignatureType},
 };
 
-#[cfg(any(
-    feature = "k256",
-    feature = "p256",
-    feature = "p384",
-))]
+#[cfg(any(feature = "k256", feature = "p256", feature = "p384",))]
 use super::EcCurves;
 
 #[cfg(any(feature = "aes", feature = "chacha"))]
