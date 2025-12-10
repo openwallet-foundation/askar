@@ -10,12 +10,11 @@ repository = "https://github.com/hyperledger/aries-askar"
 keywords = ["cryptography", "aries", "verifiable credentials"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
-cached_property = "~1.5.2"
+python = "^3.10"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "~8.3.2"
-pytest-asyncio = "~0.23.7"
+pytest = "~8.4"
+pytest-asyncio = "~0.26.0"
 
 [build-system]
 requires = ["poetry-core>=1.8.3"]
@@ -31,5 +30,6 @@ extend-ignore = ["D202", "W503"]
 per-file-ignores = { "*/__init__.py" = ["D104"] }
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
-asyncio_mode = "strict"
