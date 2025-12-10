@@ -2,7 +2,7 @@ from enum import IntEnum
 from typing import Union
 
 from . import bindings
-from .bindings import Argon2Algorithm, Argon2Config, Argon2Version
+from .bindings.lib import Argon2Algorithm, Argon2Config, Argon2Version
 
 __all__ = [
     "Argon2",

@@ -17,7 +17,7 @@ use super::{
 use crate::{
     entry::{Entry, EntryOperation, Scan, TagFilter},
     error::Error,
-    ffi::result_list::FfiStringList,
+    ffi::result_list::{FfiHandleList, FfiStringList},
     future::spawn_ok,
     store::{PassKey, Session, Store, StoreKeyMethod},
 };
@@ -125,6 +125,17 @@ where
             }
         }
         Ok(())
+    }
+
+    pub async fn keys(&self, store: StoreHandle) -> Result<Vec<K>, Error> {
+        Ok(self
+            .map
+            .read()
+            .await
+            .iter()
+            .filter(|(_, (s, _))| store.eq(s))
+            .map(|(k, _)| *k)
+            .collect())
     }
 }
 
@@ -1209,6 +1220,56 @@ pub extern "C" fn askar_session_close(
             else if let Err(err) = result {
                 error!("{}", err);
             }
+        });
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_store_list_sessions(
+    handle: StoreHandle,
+    cb: Option<extern "C" fn(cb_id: CallbackId, err: ErrorCode, results: FfiHandleList)>,
+    cb_id: CallbackId,
+) -> ErrorCode {
+    catch_err! {
+        trace!("List sessions");
+        let cb = cb.ok_or_else(|| err_msg!("No callback provided"))?;
+        let cb = EnsureCallback::new(move |result|
+            match result {
+                Ok(rows) => {
+                    let res = FfiHandleList::from(rows);
+                    cb(cb_id, ErrorCode::Success, res)
+                },
+                Err(err) => cb(cb_id, set_last_error(Some(err)), FfiHandleList::invalid()),
+            }
+        );
+        spawn_ok(async move {
+            cb.resolve(FFI_SESSIONS.keys(handle).await);
+        });
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_store_list_scans(
+    handle: StoreHandle,
+    cb: Option<extern "C" fn(cb_id: CallbackId, err: ErrorCode, results: FfiHandleList)>,
+    cb_id: CallbackId,
+) -> ErrorCode {
+    catch_err! {
+        trace!("List scans");
+        let cb = cb.ok_or_else(|| err_msg!("No callback provided"))?;
+        let cb = EnsureCallback::new(move |result|
+            match result {
+                Ok(rows) => {
+                    let res = FfiHandleList::from(rows);
+                    cb(cb_id, ErrorCode::Success, res)
+                },
+                Err(err) => cb(cb_id, set_last_error(Some(err)), FfiHandleList::invalid()),
+            }
+        );
+        spawn_ok(async move {
+            cb.resolve(FFI_SCANS.keys(handle).await);
         });
         Ok(ErrorCode::Success)
     }
