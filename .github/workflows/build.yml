@@ -227,7 +227,7 @@ jobs:
             plat-name: manylinux2014_x86_64
           - os: macos-latest
             architecture: darwin-universal
-            plat-name: macosx_10_9_universal2 # macosx_10_9_x86_64
+            plat-name: macosx_10_9_universal2
           - os: windows-latest
             architecture: windows-x86_64
             plat-name: win_amd64
@@ -246,7 +246,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install setuptools wheel twine auditwheel
+          pip install auditwheel poetry twine wheel
 
       - name: Fetch library artifacts
         uses: actions/download-artifact@v6
@@ -265,7 +265,16 @@ jobs:
       - name: Build wheel package
         shell: sh
         run: |
-          python setup.py bdist_wheel --python-tag=py3 --plat-name=${{ matrix.plat-name }}
+          poetry install --no-dev
+          poetry build
+
+          # Platform-specific wheel renaming:
+          wheel_file=$(find dist/ -type f -name '*.whl')
+          echo "Original wheel file: ${wheel_file}"
+          platform_tag="${{ matrix.plat-name }}"
+          echo "Using platform tag: ${platform_tag}"
+          python -m wheel tags --python-tag=py3 --abi-tag=none --platform-tag="${platform_tag}" --remove "${wheel_file}"
+
         working-directory: wrappers/python
 
       - name: Run tests
@@ -274,14 +283,14 @@ jobs:
         if: ${{ matrix.architecture != 'linux-aarch64' }}
         shell: sh
         run: |
-          pip install pytest pytest-asyncio dist/*
+          poetry install
           echo "-- Test SQLite in-memory --"
-          python -m pytest --log-cli-level=WARNING -k "not contention"
+          poetry run pytest --log-cli-level=WARNING -k "not contention"
           echo "-- Test SQLite file DB --"
-          TEST_STORE_URI=sqlite://test.db python -m pytest --log-cli-level=WARNING -k "not contention"
+          TEST_STORE_URI=sqlite://test.db poetry run pytest --log-cli-level=WARNING -k "not contention"
           if [ -n "$POSTGRES_URL" ]; then
             echo "-- Test Postgres DB --"
-            TEST_STORE_URI="$POSTGRES_URL" python -m pytest --log-cli-level=WARNING -k "not contention"
+            TEST_STORE_URI="$POSTGRES_URL" poetry run pytest --log-cli-level=WARNING -k "not contention"
           fi
         working-directory: wrappers/python
         env:
