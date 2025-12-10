@@ -1,0 +1,35 @@
+[tool.poetry]
+name = "aries_askar"
+version = "0.5.0"
+description = "Python wrapper for the Aries Askar cryptographic library"
+authors = ["Hyperledger Aries Contributors <aries@lists.hyperledger.org>"]
+readme = "README.md"
+license = "Apache-2.0"
+homepage = "https://github.com/hyperledger/aries-askar"
+repository = "https://github.com/hyperledger/aries-askar"
+keywords = ["cryptography", "aries", "verifiable credentials"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+cached_property = "~1.5.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "~8.3.2"
+pytest-asyncio = "~0.23.7"
+
+[build-system]
+requires = ["poetry-core>=1.8.3"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.setuptools.package-data]
+aries_askar = ["aries_askar.dll", "libaries_askar.dylib", "libaries_askar.so"]
+
+[tool.flake8]
+max-line-length = 88
+exclude = ["*/tests/**"]
+extend-ignore = ["D202", "W503"]
+per-file-ignores = { "*/__init__.py" = ["D104"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"
