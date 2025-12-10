@@ -1,6 +1,6 @@
 [package]
 name = "askar-storage"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["Hyperledger Aries Contributors <aries@lists.hyperledger.org>"]
 edition = "2021"
 description = "Askar secure storage support"
@@ -53,7 +53,7 @@ zeroize = "1.8"
 default-features = false
 features = ["alloc", "argon2", "chacha", "std_rng"]
 path = "../askar-crypto"
-version = "0.3"
+version = "0.4"
 
 [dependencies.sqlx]
 default-features = false

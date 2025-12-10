@@ -52,13 +52,13 @@ zeroize = "1.8"
 [dependencies.askar-crypto]
 features = ["all_keys", "any_key", "argon2", "crypto_box", "std"]
 path = "./askar-crypto"
-version = "0.3.7"
+version = "0.4.0"
 
 [dependencies.askar-storage]
 default-features = false
 features = ["any"]
 path = "./askar-storage"
-version = "0.2.4"
+version = "0.2.5"
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

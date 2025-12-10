@@ -175,7 +175,7 @@ dependencies = [
 
 [[package]]
 name = "askar-crypto"
-version = "0.3.7"
+version = "0.4.0"
 dependencies = [
  "aead",
  "aes",
@@ -216,7 +216,7 @@ dependencies = [
 
 [[package]]
 name = "askar-storage"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "arc-swap",
  "askar-crypto",
