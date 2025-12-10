@@ -8,6 +8,17 @@ license = "Apache-2.0"
 homepage = "https://github.com/hyperledger/aries-askar"
 repository = "https://github.com/hyperledger/aries-askar"
 keywords = ["cryptography", "aries", "verifiable credentials"]
+include = [
+    { path = "aries_askar/aries_askar.dll", format = [
+        "wheel",
+    ] },
+    { path = "aries_askar/libaries_askar.dylib", format = [
+        "wheel",
+    ] },
+    { path = "aries_askar/libaries_askar.so", format = [
+        "wheel",
+    ] },
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -19,9 +30,6 @@ pytest-asyncio = "~0.26.0"
 [build-system]
 requires = ["poetry-core>=1.8.3"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.setuptools.package-data]
-aries_askar = ["aries_askar.dll", "libaries_askar.dylib", "libaries_askar.so"]
 
 [tool.flake8]
 max-line-length = 88
