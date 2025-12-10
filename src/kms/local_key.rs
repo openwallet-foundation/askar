@@ -22,9 +22,6 @@ use crate::{
     error::Error,
 };
 
-#[cfg(feature = "mobile_secure_element")]
-use crate::crypto::alg::p256_hardware::P256HardwareKeyPair;
-
 /// A stored key entry
 #[derive(Debug)]
 pub struct LocalKey {
@@ -37,21 +34,6 @@ impl LocalKey {
     pub fn generate_with_rng(alg: KeyAlg, ephemeral: bool) -> Result<Self, Error> {
         let inner = Box::<AnyKey>::random(alg)?;
         Ok(Self { inner, ephemeral })
-    }
-
-    /// Create a new random keypair backed by hardware
-    pub fn generate_for_hardware(alg: KeyAlg, ephemeral: bool) -> Result<Self, Error> {
-        let inner = Box::<AnyKey>::generate_for_hardware(alg)?;
-        Ok(Self { inner, ephemeral })
-    }
-
-    /// Get a local key by id
-    pub fn from_id(alg: KeyAlg, id: &str) -> Result<Self, Error> {
-        let inner = Box::<AnyKey>::get_with_id(alg, id)?;
-        Ok(Self {
-            inner,
-            ephemeral: false,
-        })
     }
 
     /// Create a new deterministic key or keypair
@@ -287,16 +269,6 @@ impl LocalKey {
         let mut buf = ciphertext.into().into_secret();
         self.inner.decrypt_in_place(&mut buf, nonce, &[])?;
         Self::from_secret_bytes(alg, buf.as_ref())
-    }
-
-    /// Check whether the key is hardware backed by checking the type id of the underlying
-    /// structure
-    pub fn is_hardware_backed(&self) -> bool {
-        #[cfg(feature = "mobile_secure_element")]
-        return self.inner.downcast_ref::<P256HardwareKeyPair>().is_some();
-
-        #[cfg(not(feature = "mobile_secure_element"))]
-        false
     }
 }
 

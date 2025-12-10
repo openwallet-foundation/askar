@@ -19,7 +19,6 @@ use crate::{
     error::Error,
     ffi::result_list::FfiStringList,
     future::spawn_ok,
-    kms::KeyReference,
     store::{PassKey, Session, Store, StoreKeyMethod},
 };
 
@@ -975,8 +974,6 @@ pub extern "C" fn askar_session_insert_key(
             }
         );
 
-        let reference = key.is_hardware_backed().then_some(KeyReference::MobileSecureElement);
-
         spawn_ok(async move {
             let result = async {
                 let mut session = FFI_SESSIONS.borrow(handle).await?;
@@ -984,7 +981,7 @@ pub extern "C" fn askar_session_insert_key(
                     name.as_str(),
                     &key,
                     metadata.as_deref(),
-                    reference,
+                    None,
                     tags.as_deref(),
                     expiry_ms,
                 ).await

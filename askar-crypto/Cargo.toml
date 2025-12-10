@@ -27,7 +27,6 @@ default = ["alloc", "any_key", "all_keys", "crypto_box"]
 ec_curves = ["elliptic-curve", "k256", "p256", "p384"]
 ed25519 = ["curve25519-dalek", "ed25519-dalek", "x25519-dalek"]
 getrandom = ["rand/getrandom"]
-p256_hardware = ["secure-env", "ec_curves", "uuid", "getrandom"]
 std = ["alloc", "serde/std", "serde-json-core/std", "std_rng", "uuid/std"]
 std_rng = ["getrandom", "rand/std", "rand/std_rng"]
 
@@ -101,7 +100,6 @@ p384 = { version = "0.13", default-features = false, features = [
     "ecdh",
 ], optional = true }
 rand = { version = "0.8", default-features = false }
-secure-env = { package = "animo-secure-env", version = "0.4", optional = true }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde-json-core = { version = "0.6", default-features = false }
 sha2 = { version = "0.10", default-features = false }
