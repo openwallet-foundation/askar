@@ -266,7 +266,7 @@ jobs:
         shell: sh
         run: |
           poetry install
-          poetry build
+          poetry build -f wheel
 
           # Platform-specific wheel renaming:
           wheel_file=$(find dist/ -type f -name '*.whl')
@@ -300,7 +300,7 @@ jobs:
       - if: ${{ runner.os == 'Linux' }}
         name: Audit wheel
         run: |
-          auditwheel show wrappers/python/dist/* | tee auditwheel.log
+          auditwheel show wrappers/python/dist/*.whl | tee auditwheel.log
           grep -q manylinux_2_17_ auditwheel.log
 
       - name: Upload Built Python Package
