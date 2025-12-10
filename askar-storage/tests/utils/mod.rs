@@ -520,7 +520,7 @@ pub async fn db_scan(db: AnyBackend) {
 }
 
 pub async fn db_remove_all(db: AnyBackend) {
-    let test_rows = vec![
+    let test_rows = [
         Entry::new(
             EntryKind::Item,
             "category",

@@ -270,12 +270,8 @@ class Scan:
         """Accessor for the scan handle."""
         return self._handle
 
-    def __aiter__(self):
-        """Async iterator for the scan results."""
-        return self
-
-    async def __anext__(self):
-        """Fetch the next scan result during async iteration."""
+    async def load(self) -> ScanHandle:
+        """Initialize the scan."""
         if self._handle is None:
             (
                 store,
@@ -304,13 +300,22 @@ class Scan:
             )
             list_handle = await bindings.scan_next(self._handle)
             self._buffer = iter(EntryList(list_handle)) if list_handle else None
+        return self._handle
+
+    def __aiter__(self):
+        """Async iterator for the scan results."""
+        return self
+
+    async def __anext__(self):
+        """Fetch the next scan result during async iteration."""
+        handle = await self.load()
         while True:
             if not self._buffer:
                 raise StopAsyncIteration
             row = next(self._buffer, None)
             if row:
                 return row
-            list_handle = await bindings.scan_next(self._handle)
+            list_handle = await bindings.scan_next(handle)
             self._buffer = iter(EntryList(list_handle)) if list_handle else None
 
     async def fetch_all(self) -> Sequence[Entry]:
@@ -487,6 +492,14 @@ class Store:
     def transaction(self, profile: str = None, *, autocommit=None) -> "OpenSession":
         """Open a new transactional session on the store."""
         return OpenSession(self._handle, profile, True, autocommit)
+
+    async def active_sessions(self) -> Sequence[SessionHandle]:
+        """List the open sessions for the store."""
+        return await bindings.store_list_sessions(self._handle)
+
+    async def active_scans(self) -> Sequence[ScanHandle]:
+        """List the open scans for the store."""
+        return await bindings.store_list_scans(self._handle)
 
     async def close(self, *, remove: bool = False) -> bool:
         """Close and free the pool instance."""

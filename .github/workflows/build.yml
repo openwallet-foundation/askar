@@ -4,7 +4,7 @@ env:
   RUST_VERSION: "1.86.0"
   RUST_NIGHTLY_VERSION: "nightly"
   CROSS_VERSION: "0.2.4"
-  TEST_FEATURES: ""
+  TEST_FEATURES: "default"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -107,7 +107,7 @@ jobs:
           echo "TEST_FEATURES=pg_test" >> $GITHUB_ENV
 
       - name: Run tests
-        run: cargo test --workspace --features "${{ env.TEST_FEATURES || 'default' }}" -- --nocapture --test-threads 1 --skip contention
+        run: cargo test --workspace --features "${{ env.TEST_FEATURES }}" -- --nocapture --test-threads 1 --skip contention
         env:
           RUST_BACKTRACE: full
           # RUST_LOG: debug
@@ -332,9 +332,6 @@ jobs:
     needs: [checks]
     runs-on: macos-latest
 
-    env:
-      FEATURES: "mobile_secure_element"
-
     strategy:
       matrix:
         target: [aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios]
@@ -351,7 +348,7 @@ jobs:
 
       - name: Build
         run: |
-          cargo build --lib --release --target ${{matrix.target}} --features ${{ env.FEATURES }}
+          cargo build --lib --release --target ${{matrix.target}}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
@@ -362,9 +359,6 @@ jobs:
   build-android:
     name: Build library (Android)
     needs: [checks]
-
-    env:
-      FEATURES: "mobile_secure_element"
 
     runs-on: ubuntu-latest
 
@@ -402,7 +396,7 @@ jobs:
             export CFLAGS="-D__ARM_ARCH=8"
           fi
 
-          cross build --lib --release --target ${{matrix.target}} --features ${{ env.FEATURES }}
+          cross build --lib --release --target ${{matrix.target}}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v5

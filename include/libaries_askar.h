@@ -175,6 +175,11 @@ typedef struct ArcHandle_FfiEntryList {
 
 typedef struct ArcHandle_FfiEntryList EntryListHandle;
 
+typedef struct FfiHandleList {
+  int32_t len;
+  size_t *data;
+} FfiHandleList;
+
 typedef struct ArcHandle_LocalKey {
   const struct LocalKey *_0;
 } ArcHandle_LocalKey;
@@ -305,6 +310,8 @@ ErrorCode askar_entry_list_get_value(EntryListHandle handle,
                                      struct SecretBuffer *value);
 
 ErrorCode askar_get_current_error(const char **error_json_p);
+
+void askar_handle_list_free(struct FfiHandleList handle);
 
 ErrorCode askar_key_aead_decrypt(LocalKeyHandle handle,
                                  struct ByteBuffer ciphertext,
@@ -633,6 +640,18 @@ ErrorCode askar_store_list_profiles(StoreHandle handle,
                                     void (*cb)(CallbackId cb_id,
                                                ErrorCode err,
                                                StringListHandle results),
+                                    CallbackId cb_id);
+
+ErrorCode askar_store_list_scans(StoreHandle handle,
+                                 void (*cb)(CallbackId cb_id,
+                                            ErrorCode err,
+                                            struct FfiHandleList results),
+                                 CallbackId cb_id);
+
+ErrorCode askar_store_list_sessions(StoreHandle handle,
+                                    void (*cb)(CallbackId cb_id,
+                                               ErrorCode err,
+                                               struct FfiHandleList results),
                                     CallbackId cb_id);
 
 ErrorCode askar_store_open(FfiStr spec_uri,

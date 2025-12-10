@@ -119,6 +119,17 @@ class ScanHandle(ArcHandle):
     _dtor_ = "askar_scan_free"
 
 
+class HandleList(Structure):
+    _fields_ = [("count", c_int32), ("data", POINTER(c_size_t))]
+    _dtor_ = "askar_handle_list_free"
+
+    def __iter__(self):
+        res = []
+        for idx in range(self.count):
+            res.append(self.data[idx])
+        return iter(res)
+
+
 class EntryListHandle(ArcHandle):
     """Handle for an active EntryList instance."""
 
