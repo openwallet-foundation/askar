@@ -246,7 +246,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install auditwheel poetry twine wheel
+          pip install auditwheel poetry wheel
 
       - name: Fetch library artifacts
         uses: actions/download-artifact@v6
@@ -303,7 +303,7 @@ jobs:
           auditwheel show wrappers/python/dist/*.whl | tee auditwheel.log
           grep -q manylinux_2_17_ auditwheel.log
 
-      - name: Upload Built Python Package
+      - name: Upload artifacts
         if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish-python-wrapper == 'true')
         uses: actions/upload-artifact@v5
         with:
