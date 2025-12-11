@@ -2,7 +2,7 @@
 name = "aries_askar"
 version = "0.5.0"
 description = "Python wrapper for the Aries Askar cryptographic library"
-authors = ["Hyperledger Aries Contributors <aries@lists.hyperledger.org>"]
+authors = ["OpenWallet Foundation Askar Contributors"]
 readme = "README.md"
 license = "Apache-2.0"
 homepage = "https://github.com/openwallet-foundation/askar"
