@@ -177,7 +177,7 @@ jobs:
           fi
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: library-${{ matrix.architecture }}
           path: target/${{ matrix.target }}/release/${{ matrix.lib }}
@@ -249,7 +249,7 @@ jobs:
           pip install auditwheel poetry wheel
 
       - name: Fetch library artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: library-${{ matrix.architecture }}
           path: wrappers/python/aries_askar/
@@ -305,7 +305,7 @@ jobs:
 
       - name: Upload artifacts
         if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish-python-wrapper == 'true')
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: python_package-${{ matrix.plat-name }}
           path: wrappers/python/dist
@@ -324,7 +324,7 @@ jobs:
 
     steps:
       - name: Fetch Python package
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: wrappers/python/dist
           pattern: "python_package-*"
@@ -359,7 +359,7 @@ jobs:
           cargo build --lib --release --target ${{matrix.target}}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: library-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/libaries_askar.a
@@ -407,7 +407,7 @@ jobs:
           cross build --lib --release --target ${{matrix.target}}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: library-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/libaries_askar.so
@@ -422,7 +422,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Fetch static libraries
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
 
       - run: >
           ./build-xcframework.sh library-aarch64-apple-ios \
@@ -431,7 +431,7 @@ jobs:
                                  include
 
       - name: Save xcframework
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: aries_askar.xcframework
           path: ./out
@@ -450,7 +450,7 @@ jobs:
     needs: [build-android]
     steps:
       - name: Fetch libraries
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
 
       - run: |
           sudo mkdir ./libs
@@ -460,7 +460,7 @@ jobs:
           sudo mv library-x86_64-linux-android    ./libs/x86_64
 
       - name: Save Android library
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: android-libraries
           path: ./libs
@@ -487,13 +487,13 @@ jobs:
 
     steps:
       - name: Fetch Android libraries
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: android-libraries
           path: mobile/android/
 
       - name: Fetch iOS Framework
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: aries_askar.xcframework
           path: mobile/ios/
