@@ -26,7 +26,7 @@ postgres = ["dep:sqlx", "sqlx?/postgres", "sqlx?/tls-rustls"]
 sqlite = ["dep:sqlx", "sqlx?/sqlite"]
 
 [dependencies]
-arc-swap = "1.7"
+arc-swap = "1.8"
 async-lock = "3.4"
 async-stream = "0.3"
 bs58 = "0.5"
