@@ -3,7 +3,6 @@ name: "Aries-Askar"
 env:
   RUST_VERSION: "1.86.0"
   RUST_NIGHTLY_VERSION: "nightly"
-  CROSS_VERSION: "0.2.4"
   TEST_FEATURES: "default"
 
 concurrency:
@@ -65,11 +64,6 @@ jobs:
       - name: Cargo check
         run: cargo check --workspace
 
-      - if: ${{ runner.os == 'Linux' }}
-        name: Pre-install cross
-        run: |
-          cargo install --bins --git https://github.com/rust-embedded/cross --locked --tag v${{ env.CROSS_VERSION }} cross
-
   tests:
     name: Run tests
     needs: [checks]
@@ -123,15 +117,15 @@ jobs:
       matrix:
         include:
           - architecture: linux-aarch64
-            os: ubuntu-latest
+            os: ubuntu-24.04-arm
             lib: libaries_askar.so
             target: aarch64-unknown-linux-gnu
-            use_cross: true
+            manylinux_image: quay.io/pypa/manylinux2014_aarch64
           - architecture: linux-x86_64
             os: ubuntu-latest
             lib: libaries_askar.so
             target: x86_64-unknown-linux-gnu
-            use_cross: true
+            manylinux_image: quay.io/pypa/manylinux2014_x86_64
           - architecture: darwin-universal
             os: macos-latest
             lib: libaries_askar.dylib
@@ -162,14 +156,16 @@ jobs:
       - name: Build
         shell: sh
         run: |
-          if [ -n "${{ matrix.use_cross }}" ]; then
-            cargo install --bins --git https://github.com/rust-embedded/cross --locked --tag v${{ env.CROSS_VERSION }} cross
-            # Required for compatibility with manylinux2014.
-            # https://github.com/briansmith/ring/issues/1728
-            if [ "${{ matrix.architecture }}" = "linux-aarch64" ]; then
-              export CFLAGS="-D__ARM_ARCH=8"
-            fi
-            cross build --lib --release --target ${{ matrix.target }}
+          if [ -n "${{ matrix.manylinux_image }}" ]; then
+            # Build each Linux target natively in pypa's manylinux2014 image, which has
+            # binutils 2.35 and targets glibc 2.17. The rust-cross images use the older
+            # binutils 2.29.1, which miscompiles ring's aarch64 assembly and causes
+            # openwallet-foundation/askar#401.
+            docker run --rm -v "$PWD":/io -w /io -e CARGO_TARGET_DIR=/io/target \
+              "${{ matrix.manylinux_image }}" bash -c '
+                curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain ${{ env.RUST_VERSION }}
+                export PATH="$HOME/.cargo/bin:$PATH"
+                cargo build --lib --release --target ${{ matrix.target }}'
           elif [ "${{ matrix.architecture }}" == "darwin-universal" ]; then
             ./build-universal.sh
           else
