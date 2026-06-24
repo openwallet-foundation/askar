@@ -145,9 +145,14 @@ impl PostgresStoreOptions {
         // try connecting normally in case the database exists
         match self.pool().await {
             Ok(pool) => Ok(pool),
-            Err(SqlxError::Database(db_err)) if db_err.code() == Some(Cow::Borrowed("3D000")) => {
-                // error 3D000 is INVALID CATALOG NAME in postgres,
-                // this indicates that the database does not exist
+            Err(SqlxError::Database(_)) => {
+                // a direct postgres connection reports a missing database as 3D000
+                // (invalid catalog name). poolers like PgPool-II and RDS Proxy report
+                // XX000 instead, since they cannot open a session to a database that is
+                // not there. the exact code depends on the pooler, so on any database
+                // error, assume it may be missing and connect to the admin database to
+                // create it. if that does not help, the reconnect below returns the
+                // real error.
                 let mut admin_conn = PgConnection::connect(self.admin_uri.as_ref())
                     .await
                     .map_err(err_map!(
