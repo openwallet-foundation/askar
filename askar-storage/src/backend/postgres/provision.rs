@@ -24,12 +24,16 @@ const DEFAULT_CONNECT_TIMEOUT: u64 = 30;
 const DEFAULT_IDLE_TIMEOUT: u64 = 300;
 const DEFAULT_MIN_CONNECTIONS: u32 = 0;
 const DEFAULT_MAX_CONNECTIONS: u32 = 10;
+const DEFAULT_PING_TIMEOUT: u64 = 1;
+const DEFAULT_MIN_IDLE_FOR_PING: u64 = 1;
 
 /// Configuration options for PostgreSQL stores
 #[derive(Debug)]
 pub struct PostgresStoreOptions {
     pub(crate) connect_timeout: Duration,
     pub(crate) idle_timeout: Duration,
+    pub(crate) ping_timeout: Duration,
+    pub(crate) min_idle_for_ping: Duration,
     pub(crate) max_connections: u32,
     pub(crate) min_connections: u32,
     pub(crate) uri: String,
@@ -60,6 +64,21 @@ impl PostgresStoreOptions {
                 .map_err(err_map!(Input, "Error parsing 'idle_timeout' parameter"))?
         } else {
             DEFAULT_IDLE_TIMEOUT
+        };
+        let ping_timeout = if let Some(timeout) = opts.query.remove("ping_timeout") {
+            timeout
+                .parse()
+                .map_err(err_map!(Input, "Error parsing 'ping_timeout' parameter"))?
+        } else {
+            DEFAULT_PING_TIMEOUT
+        };
+        let min_idle_for_ping = if let Some(idle) = opts.query.remove("min_idle_for_ping") {
+            idle.parse().map_err(err_map!(
+                Input,
+                "Error parsing 'min_idle_for_ping' parameter"
+            ))?
+        } else {
+            DEFAULT_MIN_IDLE_FOR_PING
         };
         let max_connections = if let Some(max_conn) = opts.query.remove("max_connections") {
             max_conn
@@ -107,6 +126,8 @@ impl PostgresStoreOptions {
         Ok(Self {
             connect_timeout: Duration::from_secs(connect_timeout),
             idle_timeout: Duration::from_secs(idle_timeout),
+            ping_timeout: Duration::from_secs(ping_timeout),
+            min_idle_for_ping: Duration::from_secs(min_idle_for_ping),
             max_connections,
             min_connections,
             uri,
@@ -131,14 +152,35 @@ impl PostgresStoreOptions {
             // NB: schema is a validated identifier
             conn_opts = conn_opts.options([("search_path", s)]);
         }
-        PgPoolOptions::default()
+        let mut pool_opts = PgPoolOptions::default()
             .acquire_timeout(self.connect_timeout)
             .idle_timeout(self.idle_timeout)
             .max_connections(self.max_connections)
             .min_connections(self.min_connections)
-            .test_before_acquire(false)
-            .connect_with(conn_opts)
-            .await
+            .test_before_acquire(false);
+        if !self.ping_timeout.is_zero() {
+            let ping_timeout = self.ping_timeout;
+            let min_idle_for_ping = self.min_idle_for_ping;
+            // Ping connections that have been idle before handing them out. A
+            // connection that died while idle may be half-open (silently dropped
+            // by a NAT or proxy), in which case a ping does not error but hangs
+            // until the kernel gives up retransmitting (~15 minutes). Applying a
+            // separate short deadline to the ping lets the pool discard the dead
+            // connection and try another (or dial a fresh one) within the regular
+            // acquire timeout.
+            pool_opts = pool_opts.before_acquire(move |conn, meta| {
+                Box::pin(async move {
+                    if meta.idle_for < min_idle_for_ping {
+                        return Ok(true);
+                    }
+                    match tokio::time::timeout(ping_timeout, conn.ping()).await {
+                        Ok(Ok(())) => Ok(true),
+                        _ => Ok(false),
+                    }
+                })
+            });
+        }
+        pool_opts.connect_with(conn_opts).await
     }
 
     pub(crate) async fn create_db_pool(&self) -> Result<PgPool, Error> {
@@ -537,13 +579,15 @@ mod tests {
         let uri = "postgres://user:pass@host/db_name\
             ?admin_account=user2&admin_password=pass2\
             &connect_timeout=9&max_connections=23&min_connections=32\
-            &idle_timeout=99\
+            &idle_timeout=99&ping_timeout=2&min_idle_for_ping=5\
             &test=1";
         let opts = PostgresStoreOptions::new(uri).unwrap();
         assert_eq!(opts.max_connections, 23);
         assert_eq!(opts.min_connections, 32);
         assert_eq!(opts.connect_timeout, Duration::from_secs(9));
         assert_eq!(opts.idle_timeout, Duration::from_secs(99));
+        assert_eq!(opts.ping_timeout, Duration::from_secs(2));
+        assert_eq!(opts.min_idle_for_ping, Duration::from_secs(5));
         assert_eq!(opts.uri, "postgres://user:pass@host/db_name?test=1");
         assert_eq!(
             opts.admin_uri,
