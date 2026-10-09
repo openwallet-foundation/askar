@@ -9,7 +9,7 @@ readme = "README.md"
 repository = "https://github.com/hyperledger/aries-askar/"
 categories = ["cryptography", "no-std"]
 keywords = ["hyperledger", "aries", "didcomm", "ssi"]
-rust-version = "1.89"
+rust-version = "1.94"
 
 [package.metadata.docs.rs]
 features = ["argon2", "std"]

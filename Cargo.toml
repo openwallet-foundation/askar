@@ -13,7 +13,7 @@ readme = "README.md"
 repository = "https://github.com/openwallet-foundation/askar/"
 categories = ["cryptography", "database"]
 keywords = ["encryption", "signatures", "ssi", "verifiable", "credentials"]
-rust-version = "1.89"
+rust-version = "1.94"
 
 [package.metadata.docs.rs]
 features = ["all_backends"]
