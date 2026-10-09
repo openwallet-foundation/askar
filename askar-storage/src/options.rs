@@ -105,11 +105,14 @@ impl Options<'_> {
         uri.push_str(&self.path);
         if !self.query.is_empty() {
             uri.push('?');
-            for (k, v) in self.query {
-                push_iter_str(&mut uri, url::form_urlencoded::byte_serialize(k.as_bytes()));
-                uri.push('=');
-                push_iter_str(&mut uri, url::form_urlencoded::byte_serialize(v.as_bytes()));
+            // sort the parameters for a consistent result, as the map is unordered
+            let mut params: Vec<_> = self.query.iter().collect();
+            params.sort();
+            let mut query = url::form_urlencoded::Serializer::new(String::new());
+            for (k, v) in params {
+                query.append_pair(k, v);
             }
+            uri.push_str(&query.finish());
         }
         if !self.fragment.is_empty() {
             uri.push('#');
@@ -191,6 +194,20 @@ mod tests {
                 fragment: Cow::Borrowed("frag")
             }
         );
+    }
+
+    #[test]
+    fn options_multiple_query_params() {
+        let opts_str = "postgres://user:pass@host/dbname?a=1&b=2&c=3";
+        let opts = Options::parse_uri(opts_str).unwrap();
+        assert_eq!(opts.query.len(), 3);
+        // the parameters are separated, and the order is stable
+        assert_eq!(opts.clone().into_uri(), opts_str);
+        // and are escaped
+        let opts = Options::parse_uri("host/db?z=a%26b&a%3Dx=%3F&m=").unwrap();
+        let uri = opts.clone().into_uri();
+        assert_eq!(uri, "host/db?a%3Dx=%3F&m=&z=a%26b");
+        assert_eq!(Options::parse_uri(&uri).unwrap(), opts);
     }
 
     #[test]

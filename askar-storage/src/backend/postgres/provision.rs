@@ -550,4 +550,25 @@ mod tests {
             "postgres://user2:pass2@host/postgres?test=1"
         );
     }
+
+    #[test]
+    fn postgres_parse_uri_multiple_connection_params() {
+        // the parameters which are not consumed by askar are passed to postgres
+        // and must remain separate
+        let uri = "postgres://user:pass@host/db_name\
+            ?sslmode=verify-full&max_connections=12&min_connections=4\
+            &application_name=askar&sslrootcert=my.pem&schema=s1";
+        let opts = PostgresStoreOptions::new(uri).unwrap();
+        let expected_query = "?application_name=askar&sslmode=verify-full&sslrootcert=my.pem";
+        assert_eq!(opts.max_connections, 12);
+        assert_eq!(opts.min_connections, 4);
+        assert_eq!(
+            opts.uri,
+            format!("postgres://user:pass@host/db_name{expected_query}")
+        );
+        assert_eq!(
+            opts.admin_uri,
+            format!("postgres://user:pass@host/postgres{expected_query}")
+        );
+    }
 }
