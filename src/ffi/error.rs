@@ -1,13 +1,11 @@
 use crate::error::{Error, ErrorKind};
 
 use std::os::raw::c_char;
-use std::sync::RwLock;
+use std::sync::{LazyLock, RwLock};
 
 use ffi_support::rust_string_to_c;
 
-use once_cell::sync::Lazy;
-
-static LAST_ERROR: Lazy<RwLock<Option<Error>>> = Lazy::new(|| RwLock::new(None));
+static LAST_ERROR: LazyLock<RwLock<Option<Error>>> = LazyLock::new(|| RwLock::new(None));
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize)]
 #[repr(i64)]

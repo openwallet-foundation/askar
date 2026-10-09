@@ -1,15 +1,17 @@
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    OnceLock,
+};
 
 use log::{LevelFilter, Metadata, Record};
-use once_cell::sync::OnceCell;
 
 use super::error::ErrorCode;
 use crate::error::Error;
 
-static LOGGER: OnceCell<CustomLogger> = OnceCell::new();
+static LOGGER: OnceLock<CustomLogger> = OnceLock::new();
 
 pub type EnabledCallback = extern "C" fn(context: *const c_void, level: i32) -> i8;
 
