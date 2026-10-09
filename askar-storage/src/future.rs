@@ -1,18 +1,17 @@
 use std::{
     future::Future,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, LazyLock},
     thread,
     time::{Duration, Instant},
 };
 
 use arc_swap::ArcSwapOption;
-use once_cell::sync::Lazy;
 use tokio::runtime::Runtime;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-static RUNTIME: Lazy<ArcSwapOption<Runtime>> = Lazy::new(|| {
+static RUNTIME: LazyLock<ArcSwapOption<Runtime>> = LazyLock::new(|| {
     ArcSwapOption::new(Some(Arc::new(
         Runtime::new().expect("Error creating tokio runtime"),
     )))
@@ -71,7 +70,7 @@ pub async fn timeout<R>(dur: Duration, f: impl Future<Output = R>) -> Option<R> 
 #[doc(hidden)]
 pub fn shutdown(max_dur: Duration) {
     let start = Instant::now();
-    if let Some(rt_swap) = Lazy::get(&RUNTIME) {
+    if let Some(rt_swap) = LazyLock::get(&RUNTIME) {
         if let Some(mut rt) = rt_swap.swap(None) {
             loop {
                 match Arc::try_unwrap(rt) {

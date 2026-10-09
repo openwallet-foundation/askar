@@ -1,9 +1,11 @@
-use std::{collections::BTreeMap, ffi::CString, os::raw::c_char, ptr, str::FromStr, sync::Arc};
+use std::{
+    collections::BTreeMap, ffi::CString, os::raw::c_char, ptr, str::FromStr, sync::Arc,
+    sync::LazyLock,
+};
 
 use askar_storage::backend::OrderBy;
 use async_lock::{Mutex as TryMutex, MutexGuardArc as TryMutexGuard, RwLock};
 use ffi_support::{rust_string_to_c, ByteBuffer, FfiStr};
-use once_cell::sync::Lazy;
 
 use super::{
     error::set_last_error,
@@ -26,12 +28,12 @@ new_sequence_handle!(StoreHandle, FFI_STORE_COUNTER);
 new_sequence_handle!(SessionHandle, FFI_SESSION_COUNTER);
 new_sequence_handle!(ScanHandle, FFI_SCAN_COUNTER);
 
-static FFI_STORES: Lazy<RwLock<BTreeMap<StoreHandle, Store>>> =
-    Lazy::new(|| RwLock::new(BTreeMap::new()));
-static FFI_SESSIONS: Lazy<StoreResourceMap<SessionHandle, Session>> =
-    Lazy::new(StoreResourceMap::new);
-static FFI_SCANS: Lazy<StoreResourceMap<ScanHandle, Scan<'static, Entry>>> =
-    Lazy::new(StoreResourceMap::new);
+static FFI_STORES: LazyLock<RwLock<BTreeMap<StoreHandle, Store>>> =
+    LazyLock::new(|| RwLock::new(BTreeMap::new()));
+static FFI_SESSIONS: LazyLock<StoreResourceMap<SessionHandle, Session>> =
+    LazyLock::new(StoreResourceMap::new);
+static FFI_SCANS: LazyLock<StoreResourceMap<ScanHandle, Scan<'static, Entry>>> =
+    LazyLock::new(StoreResourceMap::new);
 
 impl StoreHandle {
     pub async fn create(value: Store) -> Self {
