@@ -5,15 +5,15 @@ use core::{
     ops::Add,
 };
 
-use aead::generic_array::GenericArray;
+use aead::array::Array;
 use blake2::Digest;
 use bls12_381::{G1Affine, G1Projective, G2Affine, G2Projective, Scalar};
 use sha2::Sha256;
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::generic_array::{
+use crate::array::{
     typenum::{self, Unsigned, U192, U32, U48, U96},
-    ArrayLength,
+    ArraySize,
 };
 
 use super::{BlsCurves, HasKeyAlg, HasKeyBackend, KeyAlg};
@@ -99,7 +99,7 @@ impl<Pk> KeypairMeta for BlsKeyPair<Pk>
 where
     Pk: BlsPublicKeyType,
     U32: Add<Pk::BufferSize>,
-    <U32 as Add<Pk::BufferSize>>::Output: ArrayLength<u8>,
+    <U32 as Add<Pk::BufferSize>>::Output: ArraySize,
 {
     type PublicKeySize = Pk::BufferSize;
     type KeypairSize = typenum::Sum<Self::KeySize, Pk::BufferSize>;
@@ -268,7 +268,7 @@ impl Drop for BlsSecretKey {
 /// bls-signatures RFC draft 4 (incompatible with earlier)
 #[derive(Debug, Clone)]
 pub struct BlsKeyGen<'g> {
-    salt: Option<GenericArray<u8, U32>>,
+    salt: Option<Array<u8, U32>>,
     ikm: &'g [u8],
 }
 
@@ -305,9 +305,9 @@ pub trait BlsPublicKeyType: 'static {
     type Buffer: Clone + Debug + PartialEq + Sized + Zeroize;
 
     /// The size of the serialized compressed public key
-    type BufferSize: ArrayLength<u8>;
+    type BufferSize: ArraySize;
     /// The size of the serialized uncompressed public key
-    type BufferSizeWide: ArrayLength<u8>;
+    type BufferSizeWide: ArraySize;
 
     /// The associated algorithm type
     const ALG_TYPE: BlsCurves;

@@ -3,9 +3,9 @@
 #[cfg(feature = "alloc")]
 use crate::buffer::SecretBytes;
 use crate::{
+    array::{typenum::Unsigned, ArraySize},
     buffer::WriteBuffer,
     error::Error,
-    generic_array::{typenum::Unsigned, ArrayLength},
     random::KeyMaterial,
 };
 
@@ -145,13 +145,13 @@ pub trait KeypairBytes {
 /// For concrete secret key types
 pub trait KeyMeta {
     /// The size of the key secret bytes
-    type KeySize: ArrayLength<u8>;
+    type KeySize: ArraySize;
 }
 
 /// For concrete secret + public key types
 pub trait KeypairMeta: KeyMeta {
     /// The size of the key public bytes
-    type PublicKeySize: ArrayLength<u8>;
+    type PublicKeySize: ArraySize;
     /// The size of the secret bytes and public bytes combined
-    type KeypairSize: ArrayLength<u8>;
+    type KeypairSize: ArraySize;
 }

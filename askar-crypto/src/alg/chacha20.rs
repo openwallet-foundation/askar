@@ -2,17 +2,17 @@
 
 use core::fmt::{self, Debug, Formatter};
 
-use aead::{AeadCore, AeadInPlace, KeyInit, KeySizeUser};
+use aead::{AeadCore, AeadInOut, KeyInit, KeySizeUser};
 use chacha20poly1305::{ChaCha20Poly1305, XChaCha20Poly1305};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
 use super::{Chacha20Types, HasKeyAlg, HasKeyBackend, KeyAlg};
 use crate::{
+    array::{typenum::Unsigned, Array},
     buffer::{ArrayKey, ResizeBuffer, Writer},
     encrypt::{KeyAeadInPlace, KeyAeadMeta, KeyAeadParams},
     error::Error,
-    generic_array::{typenum::Unsigned, GenericArray},
     jwk::{FromJwk, JwkEncoder, JwkParts, ToJwk},
     kdf::{FromKeyDerivation, FromKeyExchange, KeyDerivation, KeyExchange},
     random::KeyMaterial,
@@ -25,7 +25,7 @@ pub static JWK_KEY_TYPE: &str = "oct";
 /// Trait implemented by supported ChaCha20 algorithms
 pub trait Chacha20Type: 'static {
     /// The AEAD implementation
-    type Aead: KeyInit + AeadCore + AeadInPlace;
+    type Aead: KeyInit + AeadCore + AeadInOut;
 
     /// The associated algorithm type
     const ALG_TYPE: Chacha20Types;
@@ -163,10 +163,10 @@ impl<T: Chacha20Type> KeyAeadInPlace for Chacha20Key<T> {
         if nonce.len() != NonceSize::<T>::USIZE {
             return Err(err_msg!(InvalidNonce));
         }
-        let nonce = GenericArray::from_slice(nonce);
+        let nonce = nonce.try_into().map_err(|_| err_msg!(InvalidNonce))?;
         let chacha = T::Aead::new(self.0.as_ref());
         let tag = chacha
-            .encrypt_in_place_detached(nonce, aad, buffer.as_mut())
+            .encrypt_inout_detached(nonce, aad, buffer.as_mut().into())
             .map_err(|_| err_msg!(Encryption, "AEAD encryption error"))?;
         let ctext_len = buffer.as_ref().len();
         buffer.buffer_write(&tag[..])?;
@@ -183,17 +183,17 @@ impl<T: Chacha20Type> KeyAeadInPlace for Chacha20Key<T> {
         if nonce.len() != NonceSize::<T>::USIZE {
             return Err(err_msg!(InvalidNonce));
         }
-        let nonce = GenericArray::from_slice(nonce);
+        let nonce = nonce.try_into().map_err(|_| err_msg!(InvalidNonce))?;
         let buf_len = buffer.as_ref().len();
         if buf_len < TagSize::<T>::USIZE {
             return Err(err_msg!(Invalid, "Invalid size for encrypted data"));
         }
         let tag_start = buf_len - TagSize::<T>::USIZE;
-        let mut tag = GenericArray::default();
+        let mut tag = Array::default();
         tag.clone_from_slice(&buffer.as_ref()[tag_start..]);
         let chacha = T::Aead::new(self.0.as_ref());
         chacha
-            .decrypt_in_place_detached(nonce, aad, &mut buffer.as_mut()[..tag_start], &tag)
+            .decrypt_inout_detached(nonce, aad, (&mut buffer.as_mut()[..tag_start]).into(), &tag)
             .map_err(|_| err_msg!(Encryption, "AEAD decryption error"))?;
         buffer.buffer_resize(tag_start)?;
         Ok(())

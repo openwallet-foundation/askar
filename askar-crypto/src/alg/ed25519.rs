@@ -17,9 +17,9 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use super::{x25519::X25519KeyPair, HasKeyAlg, HasKeyBackend, KeyAlg};
 use crate::{
+    array::typenum::{U32, U64},
     buffer::{ArrayKey, WriteBuffer},
     error::Error,
-    generic_array::typenum::{U32, U64},
     jwk::{FromJwk, JwkEncoder, JwkParts, ToJwk},
     random::KeyMaterial,
     repr::{KeyGen, KeyMeta, KeyPublicBytes, KeySecretBytes, KeypairBytes, KeypairMeta},

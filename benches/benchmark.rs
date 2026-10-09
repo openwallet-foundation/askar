@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use rand::{distributions::Alphanumeric, Rng};
+use rand::{distr::Alphanumeric, RngExt};
 
 use aries_askar::{
     future::block_on,
@@ -44,12 +44,12 @@ fn populate_database_keys_profiles(db: &Store, n: u64) {
         for _ in 0..n {
             let keypair = LocalKey::generate_with_rng(KeyAlg::Ed25519, false)
                 .expect("Error creating keypair");
-            let key_name = rand::thread_rng()
+            let key_name = rand::rng()
                 .sample_iter(&Alphanumeric)
                 .take(10)
                 .map(char::from)
                 .collect::<String>();
-            let metadata = rand::thread_rng()
+            let metadata = rand::rng()
                 .sample_iter(&Alphanumeric)
                 .take(10)
                 .map(char::from)

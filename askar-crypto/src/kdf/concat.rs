@@ -4,7 +4,7 @@ use core::{fmt::Debug, marker::PhantomData};
 
 use digest::{Digest, FixedOutputReset};
 
-use crate::generic_array::{typenum::Unsigned, GenericArray};
+use crate::array::{typenum::Unsigned, Array};
 
 use crate::{buffer::WriteBuffer, error::Error};
 
@@ -98,7 +98,7 @@ impl<H: Digest> ConcatKDFHash<H> {
     }
 
     /// Complete this pass of the key derivation, returning the result
-    pub fn finish_pass(&mut self) -> GenericArray<u8, H::OutputSize>
+    pub fn finish_pass(&mut self) -> Array<u8, H::OutputSize>
     where
         H: FixedOutputReset,
     {

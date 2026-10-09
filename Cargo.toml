@@ -13,7 +13,7 @@ readme = "README.md"
 repository = "https://github.com/openwallet-foundation/askar/"
 categories = ["cryptography", "database"]
 keywords = ["encryption", "signatures", "ssi", "verifiable", "credentials"]
-rust-version = "1.81"
+rust-version = "1.89"
 
 [package.metadata.docs.rs]
 features = ["all_backends"]
@@ -62,7 +62,7 @@ version = "0.2.5"
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
-rand = { version = "0.8" }
+rand = { version = "0.10" }
 
 [profile.release]
 codegen-units = 1
@@ -73,3 +73,6 @@ strip = "debuginfo"
 [[bench]]
 harness = false
 name = "benchmark"
+
+[profile.dev.package.askar-storage]
+opt-level = 3

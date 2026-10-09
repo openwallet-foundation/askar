@@ -2,12 +2,15 @@
 
 use core::fmt::{self, Debug, Formatter};
 
-use aead::generic_array::{typenum::Unsigned, GenericArray};
 use chacha20::{
     cipher::{KeyIvInit, KeySizeUser, StreamCipher},
     ChaCha20,
 };
-use rand::{CryptoRng, RngCore, SeedableRng};
+use core::convert::Infallible;
+
+use rand::{CryptoRng, Rng as RngCore, SeedableRng, TryCryptoRng, TryRng};
+
+use crate::array::{typenum::Unsigned, Array};
 
 #[cfg(all(feature = "alloc", feature = "getrandom"))]
 use crate::buffer::SecretBytes;
@@ -38,14 +41,14 @@ impl<C: CryptoRng + RngCore> KeyMaterial for C {
 #[cfg_attr(docsrs, doc(cfg(feature = "getrandom")))]
 #[inline]
 /// Obtain an instance of the default random number generator
-pub fn default_rng() -> impl CryptoRng + RngCore + Debug + Clone {
+pub fn default_rng() -> impl CryptoRng + Debug + Clone {
     #[cfg(feature = "std_rng")]
     {
         rand::rngs::ThreadRng::default()
     }
     #[cfg(not(feature = "std_rng"))]
     {
-        rand::rngs::OsRng
+        rand::rand_core::UnwrapErr(rand::rngs::SysRng)
     }
 }
 
@@ -81,39 +84,32 @@ impl SeedableRng for RandomDet {
     #[inline]
     fn from_seed(seed: Self::Seed) -> Self {
         Self {
-            cipher: ChaCha20::new(
-                GenericArray::from_slice(&seed[..]),
-                GenericArray::from_slice(b"LibsodiumDRG"),
-            ),
+            cipher: ChaCha20::new(&Array::from(seed), &Array::from(*b"LibsodiumDRG")),
         }
     }
 }
 
-impl CryptoRng for RandomDet {}
+impl TryCryptoRng for RandomDet {}
 
-impl RngCore for RandomDet {
+impl TryRng for RandomDet {
+    type Error = Infallible;
+
     #[inline]
-    fn next_u32(&mut self) -> u32 {
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
         let mut buf = [0; 4];
         self.cipher.apply_keystream(&mut buf[..]);
-        u32::from_le_bytes(buf)
+        Ok(u32::from_le_bytes(buf))
     }
 
     #[inline]
-    fn next_u64(&mut self) -> u64 {
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
         let mut buf = [0; 8];
         self.cipher.apply_keystream(&mut buf[..]);
-        u64::from_le_bytes(buf)
+        Ok(u64::from_le_bytes(buf))
     }
 
     #[inline]
-    fn fill_bytes(&mut self, bytes: &mut [u8]) {
-        bytes.iter_mut().for_each(|b| *b = 0u8);
-        self.cipher.apply_keystream(bytes);
-    }
-
-    #[inline]
-    fn try_fill_bytes(&mut self, bytes: &mut [u8]) -> Result<(), rand::Error> {
+    fn try_fill_bytes(&mut self, bytes: &mut [u8]) -> Result<(), Self::Error> {
         bytes.iter_mut().for_each(|b| *b = 0u8);
         self.cipher.apply_keystream(bytes);
         Ok(())
