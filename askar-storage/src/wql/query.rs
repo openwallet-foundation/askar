@@ -400,12 +400,12 @@ mod serde_support {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::distributions::Alphanumeric;
-    use rand::{thread_rng, Rng};
+    use rand::distr::Alphanumeric;
+    use rand::{rng, RngExt};
     use serde_json::json;
 
     fn _random_string(len: usize) -> String {
-        String::from_utf8(thread_rng().sample_iter(&Alphanumeric).take(len).collect()).unwrap()
+        String::from_utf8(rng().sample_iter(&Alphanumeric).take(len).collect()).unwrap()
     }
 
     /// parse

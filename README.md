@@ -26,13 +26,12 @@ The name Askar (from the Arabic askar, meaning "guard" or "soldier") is used
 because of the "guard" reference, and because it is an alternate name for the
 star [Hamal in the constellation of Aries], the 50th brightest star in our sky.
 
-[Hyperledger Aries]: https://www.hyperledger.org/projects/aries
-[indy-wallet]: https://github.com/hyperledger/indy-sdk/tree/main/libindy/indy-wallet
-[Hyperledger Indy SDK]: https://github.com/hyperledger/indy-sdk
+[Hyperledger Aries]: https://www.lfdecentralizedtrust.org/projects/aries
+[indy-wallet]: https://github.com/hyperledger-indy/indy-sdk/tree/main/libindy/indy-wallet
+[Hyperledger Indy SDK]: https://github.com/hyperledger-indy/indy-sdk
 [SQLite]: https://www.sqlite.org/index.html
 [PostgreSQL]: https://www.postgresql.org/
 [storage]: /docs/storage.md
-[Aries Framework JavaScript]: https://github.com/hyperledger/aries-framework-javascript
 [ACA-Py]: https://github.com/openwallet-foundation/acapy
 [Credo]: https://github.com/openwallet-foundation/credo-ts
 [Hamal in the constellation of Aries]: https://www.star-facts.com/hamal/
@@ -44,9 +43,9 @@ As noted above, Askar is a re-implementation (with lessons learned!) of the
 concept documents written about [indy-wallet] apply similarly to Askar. These
 are linked here:
 
-- [Encryption and storage passphrases](https://github.com/hyperledger/indy-sdk/blob/main/docs/concepts/default-wallet.md)
-- [Object Storage](https://github.com/hyperledger/indy-sdk/blob/main/docs/design/003-wallet-storage/README.md)
-- [Storage Import/Export](https://github.com/hyperledger/indy-sdk/blob/main/docs/design/009-wallet-export-import/README.md)
+- [Encryption and storage passphrases](https://github.com/hyperledger-indy/indy-sdk/blob/main/docs/concepts/default-wallet.md)
+- [Object Storage](https://github.com/hyperledger-indy/indy-sdk/blob/main/docs/design/003-wallet-storage/README.md)
+- [Storage Import/Export](https://github.com/hyperledger-indy/indy-sdk/blob/main/docs/design/009-wallet-export-import/README.md)
 
 > **To Do**: These documents should be copied to this repository and updated
 > specifically for the Askar implementation.
@@ -76,13 +75,4 @@ We also welcome issues submitted about problems you encounter in using `askar`.
 
 ## License
 
-Licensed under either of
-
-- Apache License, Version 2.0
-  ([LICENSE-APACHE](https://github.com/openwallet-foundation/askar/blob/main/LICENSE-APACHE)
-  or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license
-  ([LICENSE-MIT](https://github.com/openwallet-foundation/askar/blob/main/LICENSE-MIT)
-  or [https://opensource.org/licenses/MIT](https://opensource.org/licenses/MIT))
-
-at your option.
+[Apache License Version 2.0](LICENSE)

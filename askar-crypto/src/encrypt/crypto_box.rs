@@ -1,47 +1,63 @@
 //! Compatibility with libsodium's crypto_box construct
+//!
+//! A crypto box is an X25519 key exchange, followed by HSalsa20 key derivation,
+//! followed by the XSalsa20-Poly1305 'secretbox' construction. The authentication
+//! tag is prepended to the ciphertext.
 
-use crate::{
-    buffer::Writer,
-    generic_array::{typenum::Unsigned, GenericArray},
+use blake2::{
+    digest::{consts::U24, Digest},
+    Blake2b,
 };
-use aead::{AeadCore, AeadInPlace};
-use blake2::{digest::Update, digest::VariableOutput, Blake2bVar};
-use crypto_box_rs::{self as cbox, SalsaBox};
+use poly1305::{universal_hash::KeyInit, Poly1305};
+use salsa20::{
+    cipher::{consts::U10, typenum::Unsigned, KeyIvInit, StreamCipher},
+    hsalsa, Key as SalsaKey, XSalsa20,
+};
+use subtle::ConstantTimeEq;
+use zeroize::Zeroizing;
 
 use crate::{
     alg::x25519::X25519KeyPair,
-    buffer::{ResizeBuffer, SecretBytes, WriteBuffer},
+    array::Array,
+    buffer::{ResizeBuffer, SecretBytes, WriteBuffer, Writer},
     error::Error,
     repr::{KeyGen, KeyPublicBytes},
 };
 
 /// The length of the salsa box nonce
-pub const CBOX_NONCE_LENGTH: usize = NonceSize::<SalsaBox>::USIZE;
+pub const CBOX_NONCE_LENGTH: usize = <XSalsa20 as salsa20::cipher::IvSizeUser>::IvSize::USIZE;
 /// The length of the salsa box key (x25519 public key)
 pub const CBOX_KEY_LENGTH: usize = crate::alg::x25519::PUBLIC_KEY_LENGTH;
 /// The length of the salsa box tag
-pub const CBOX_TAG_LENGTH: usize = TagSize::<SalsaBox>::USIZE;
+pub const CBOX_TAG_LENGTH: usize = 16;
 
-type NonceSize<A> = <A as AeadCore>::NonceSize;
-
-type TagSize<A> = <A as AeadCore>::TagSize;
-
-#[inline]
-fn secret_key_from(kp: &X25519KeyPair) -> Result<cbox::SecretKey, Error> {
-    if let Some(sk) = kp.secret.as_ref() {
-        Ok(cbox::SecretKey::from(sk.to_bytes()))
-    } else {
-        Err(err_msg!(MissingSecretKey))
+/// Derive the shared secretbox key from a key pair and a peer public key
+fn shared_key(sk: &X25519KeyPair, pk: &X25519KeyPair) -> Result<Zeroizing<SalsaKey>, Error> {
+    let secret = sk
+        .secret
+        .as_ref()
+        .ok_or_else(|| err_msg!(MissingSecretKey))?;
+    let shared_secret = secret.diffie_hellman(&pk.public);
+    // Like libsodium, reject an all-zero shared secret, which results from a
+    // public key of small order
+    if !shared_secret.was_contributory() {
+        return Err(err_msg!(Encryption, "Invalid public key for crypto box"));
     }
+    let shared = Zeroizing::new(shared_secret.to_bytes());
+    Ok(Zeroizing::new(hsalsa::<U10>(
+        &Array::from(*shared),
+        &Array::default(),
+    )))
 }
 
-#[inline]
-fn nonce_from(nonce: &[u8]) -> Result<&GenericArray<u8, NonceSize<SalsaBox>>, Error> {
-    if nonce.len() == NonceSize::<SalsaBox>::USIZE {
-        Ok(GenericArray::from_slice(nonce))
-    } else {
-        Err(err_msg!(InvalidNonce))
-    }
+/// Initialize the XSalsa20 cipher and Poly1305 MAC for a given key and nonce
+fn init_cipher_and_mac(key: &SalsaKey, nonce: &[u8]) -> Result<(XSalsa20, Poly1305), Error> {
+    let nonce = nonce.try_into().map_err(|_| err_msg!(InvalidNonce))?;
+    let mut cipher = XSalsa20::new(key, nonce);
+    // the first 32 bytes of the key stream are used as the MAC key
+    let mut mac_key = Zeroizing::new(poly1305::Key::default());
+    cipher.apply_keystream(mac_key.as_mut_slice());
+    Ok((cipher, Poly1305::new(&mac_key)))
 }
 
 /// Encrypt a message into a crypto box with a given nonce
@@ -51,13 +67,10 @@ pub fn crypto_box<B: ResizeBuffer>(
     buffer: &mut B,
     nonce: &[u8],
 ) -> Result<(), Error> {
-    let sender_sk = secret_key_from(sender_sk)?;
-    let nonce = nonce_from(nonce)?;
-    let pk = recip_pk.public.to_bytes().into();
-    let box_inst = SalsaBox::new(&pk, &sender_sk);
-    let tag = box_inst
-        .encrypt_in_place_detached(nonce, &[], buffer.as_mut())
-        .map_err(|_| err_msg!(Encryption, "Crypto box AEAD encryption error"))?;
+    let key = shared_key(sender_sk, recip_pk)?;
+    let (mut cipher, mac) = init_cipher_and_mac(&key, nonce)?;
+    cipher.apply_keystream(buffer.as_mut());
+    let tag = mac.compute_unpadded(buffer.as_ref());
     buffer.buffer_insert(0, &tag[..])?;
     Ok(())
 }
@@ -69,19 +82,21 @@ pub fn crypto_box_open<B: ResizeBuffer>(
     buffer: &mut B,
     nonce: &[u8],
 ) -> Result<(), Error> {
-    let recip_sk = secret_key_from(recip_sk)?;
-    let nonce = nonce_from(nonce)?;
-    let buf_len = buffer.as_ref().len();
-    if buf_len < CBOX_TAG_LENGTH {
+    let key = shared_key(recip_sk, sender_pk)?;
+    if buffer.as_ref().len() < CBOX_TAG_LENGTH {
         return Err(err_msg!(Encryption, "Invalid size for encrypted data"));
     }
+    let (mut cipher, mac) = init_cipher_and_mac(&key, nonce)?;
     // the tag is prepended
-    let tag = GenericArray::clone_from_slice(&buffer.as_ref()[..CBOX_TAG_LENGTH]);
-    let pk = sender_pk.public.to_bytes().into();
-    let box_inst = SalsaBox::new(&pk, &recip_sk);
-    box_inst
-        .decrypt_in_place_detached(nonce, &[], &mut buffer.as_mut()[CBOX_TAG_LENGTH..], &tag)
-        .map_err(|_| err_msg!(Encryption, "Crypto box AEAD decryption error"))?;
+    let expected_tag = mac.compute_unpadded(&buffer.as_ref()[CBOX_TAG_LENGTH..]);
+    if !bool::from(
+        expected_tag
+            .as_slice()
+            .ct_eq(&buffer.as_ref()[..CBOX_TAG_LENGTH]),
+    ) {
+        return Err(err_msg!(Encryption, "Crypto box AEAD decryption error"));
+    }
+    cipher.apply_keystream(&mut buffer.as_mut()[CBOX_TAG_LENGTH..]);
     buffer.buffer_remove(0..CBOX_TAG_LENGTH)?;
     Ok(())
 }
@@ -91,12 +106,10 @@ pub fn crypto_box_seal_nonce(
     ephemeral_pk: &[u8],
     recip_pk: &[u8],
 ) -> Result<[u8; CBOX_NONCE_LENGTH], Error> {
-    let mut key_hash = Blake2bVar::new(CBOX_NONCE_LENGTH).unwrap();
+    let mut key_hash = Blake2b::<U24>::new();
     key_hash.update(ephemeral_pk);
     key_hash.update(recip_pk);
-    let mut nonce = [0u8; CBOX_NONCE_LENGTH];
-    key_hash.finalize_variable(&mut nonce).unwrap();
-    Ok(nonce)
+    Ok(key_hash.finalize().into())
 }
 
 /// Encrypt a message for a recipient using an ephemeral key and deterministic nonce
@@ -156,6 +169,107 @@ mod tests {
 
         crypto_box_open(&sk, &pk, &mut buffer, nonce).unwrap();
         assert_eq!(buffer, &message[..]);
+    }
+
+    fn test_keys() -> (X25519KeyPair, X25519KeyPair) {
+        let sk = X25519KeyPair::from_secret_bytes(&hex!(
+            "a8bdb9830f8790d242f66e04b11cc2a14c752a7b63c073f3c68e9adb151cc854"
+        ))
+        .unwrap();
+        let pk = X25519KeyPair::from_public_bytes(&hex!(
+            "07d0b594683bdb6af5f4eacb1a392687d580a58db196a752dca316dedb7d251c"
+        ))
+        .unwrap();
+        (sk, pk)
+    }
+
+    const TEST_NONCE: &[u8; 24] = b"012345678912012345678912";
+
+    #[test]
+    fn crypto_box_open_tampered() {
+        let (sk, pk) = test_keys();
+        let mut boxed = SecretBytes::from_slice(b"hello there");
+        crypto_box(&pk, &sk, &mut boxed, TEST_NONCE).unwrap();
+
+        // flipping any single bit of the tag or ciphertext must be rejected
+        for idx in 0..boxed.len() {
+            for bit in 0..8 {
+                let mut buffer = boxed.clone();
+                buffer.as_mut()[idx] ^= 1 << bit;
+                assert!(
+                    crypto_box_open(&sk, &pk, &mut buffer, TEST_NONCE).is_err(),
+                    "tampered byte {idx} bit {bit} accepted"
+                );
+            }
+        }
+
+        // truncated and extended messages
+        let mut buffer = SecretBytes::from_slice(&boxed[..boxed.len() - 1]);
+        assert!(crypto_box_open(&sk, &pk, &mut buffer, TEST_NONCE).is_err());
+        let mut buffer = boxed.clone();
+        buffer.buffer_write(&[0u8]).unwrap();
+        assert!(crypto_box_open(&sk, &pk, &mut buffer, TEST_NONCE).is_err());
+
+        // modified or invalid nonce
+        let mut nonce = *TEST_NONCE;
+        nonce[0] ^= 1;
+        let mut buffer = boxed.clone();
+        assert!(crypto_box_open(&sk, &pk, &mut buffer, &nonce).is_err());
+        let mut buffer = boxed.clone();
+        assert!(crypto_box_open(&sk, &pk, &mut buffer, &TEST_NONCE[..23]).is_err());
+
+        // incorrect keys
+        let other = X25519KeyPair::random().unwrap();
+        let mut buffer = boxed.clone();
+        assert!(crypto_box_open(&other, &pk, &mut buffer, TEST_NONCE).is_err());
+        let mut buffer = boxed.clone();
+        assert!(crypto_box_open(&sk, &other, &mut buffer, TEST_NONCE).is_err());
+
+        // the untouched message still opens
+        let mut buffer = boxed.clone();
+        crypto_box_open(&sk, &pk, &mut buffer, TEST_NONCE).unwrap();
+        assert_eq!(buffer, &b"hello there"[..]);
+    }
+
+    #[test]
+    fn crypto_box_seal_open_tampered() {
+        let recip = X25519KeyPair::random().unwrap();
+        let sealed = crypto_box_seal(&recip, b"hello there").unwrap();
+        for idx in 0..sealed.len() {
+            let mut tampered = sealed.clone();
+            tampered.as_mut()[idx] ^= 0x80;
+            assert!(crypto_box_seal_open(&recip, &tampered).is_err());
+        }
+        crypto_box_seal_open(&recip, &sealed).unwrap();
+    }
+
+    #[test]
+    fn crypto_box_small_order_public_key() {
+        let (sk, _) = test_keys();
+        // Low order points (and non-canonical encodings) on Curve25519, which
+        // produce an all-zero shared secret
+        let small_order: [[u8; 32]; 5] = [
+            [0u8; 32],
+            hex!("0100000000000000000000000000000000000000000000000000000000000000"),
+            hex!("e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800"),
+            hex!("5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157"),
+            hex!("edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"),
+        ];
+        for bytes in small_order {
+            let bad_pk = X25519KeyPair::from_public_bytes(&bytes).unwrap();
+
+            let mut buffer = SecretBytes::from_slice(b"hello there");
+            assert!(crypto_box(&bad_pk, &sk, &mut buffer, TEST_NONCE).is_err());
+            // the buffer is not modified on failure
+            assert_eq!(buffer, &b"hello there"[..]);
+
+            let mut buffer = SecretBytes::from_slice(&[0u8; 32]);
+            assert!(crypto_box_open(&sk, &bad_pk, &mut buffer, TEST_NONCE).is_err());
+            assert_eq!(buffer, &[0u8; 32][..]);
+
+            // a sealed box to a small order key cannot be created
+            assert!(crypto_box_seal(&bad_pk, b"hello there").is_err());
+        }
     }
 
     #[test]

@@ -21,7 +21,7 @@ mod error;
 pub use self::error::{Error, ErrorKind};
 
 // re-export
-pub use aead::generic_array;
+pub use aead::array;
 
 pub mod alg;
 

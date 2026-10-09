@@ -3,7 +3,7 @@
 use core::marker::PhantomData;
 
 use aes_core::{
-    cipher::{BlockCipher, BlockDecrypt, BlockEncrypt, KeyInit, KeySizeUser},
+    cipher::{common::BlockSizeUser, BlockCipherDecrypt, BlockCipherEncrypt, KeyInit, KeySizeUser},
     Aes128, Aes256,
 };
 use subtle::ConstantTimeEq;
@@ -11,13 +11,13 @@ use subtle::ConstantTimeEq;
 use super::{AesKey, AesType, NonceSize, TagSize};
 use crate::{
     alg::AesTypes,
+    array::{
+        typenum::{consts, Unsigned},
+        Array,
+    },
     buffer::ResizeBuffer,
     encrypt::{KeyAeadInPlace, KeyAeadMeta, KeyAeadParams},
     error::Error,
-    generic_array::{
-        typenum::{consts, Unsigned},
-        GenericArray,
-    },
 };
 
 const AES_KW_DEFAULT_IV: [u8; 8] = [166, 166, 166, 166, 166, 166, 166, 166];
@@ -57,9 +57,9 @@ where
     AesKeyWrap<C>: AesType,
     C: KeyInit
         + KeySizeUser<KeySize = <AesKeyWrap<C> as AesType>::KeySize>
-        + BlockCipher<BlockSize = consts::U16>
-        + BlockDecrypt
-        + BlockEncrypt,
+        + BlockSizeUser<BlockSize = consts::U16>
+        + BlockCipherDecrypt
+        + BlockCipherEncrypt,
 {
     fn encrypt_in_place(
         &self,
@@ -87,7 +87,7 @@ where
 
         let aes = C::new(self.0.as_ref());
         let mut iv = AES_KW_DEFAULT_IV;
-        let mut block = GenericArray::default();
+        let mut block = Array::default();
         for j in 0..6 {
             for (i, chunk) in buffer.as_mut()[8..].chunks_exact_mut(8).enumerate() {
                 block[0..8].copy_from_slice(iv.as_ref());
@@ -133,7 +133,7 @@ where
         let mut iv = *TryInto::<&[u8; 8]>::try_into(&buffer.as_ref()[0..8]).unwrap();
         buffer.buffer_remove(0..8)?;
 
-        let mut block = GenericArray::default();
+        let mut block = Array::default();
         for j in (0..6).rev() {
             for (i, chunk) in buffer.as_mut().chunks_exact_mut(8).enumerate().rev() {
                 block[0..8].copy_from_slice(iv.as_ref());

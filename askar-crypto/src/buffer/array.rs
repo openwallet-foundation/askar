@@ -6,7 +6,7 @@ use core::{
     ops::Deref,
 };
 
-use crate::generic_array::{ArrayLength, GenericArray};
+use crate::array::{Array, ArraySize};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use subtle::{Choice, ConstantTimeEq};
 use zeroize::Zeroize;
@@ -21,13 +21,13 @@ use crate::{
 /// A secure representation for fixed-length keys
 #[derive(Clone)]
 #[repr(transparent)]
-pub struct ArrayKey<L: ArrayLength<u8>>(
-    GenericArray<u8, L>,
+pub struct ArrayKey<L: ArraySize>(
+    Array<u8, L>,
     // ensure that the type does not implement Unpin
     PhantomPinned,
 );
 
-impl<L: ArrayLength<u8>> ArrayKey<L> {
+impl<L: ArraySize> ArrayKey<L> {
     /// The array length in bytes
     pub const SIZE: usize = L::USIZE;
 
@@ -52,23 +52,23 @@ impl<L: ArrayLength<u8>> ArrayKey<L> {
     }
 
     /// Temporarily allocate and use a key
-    pub fn temp<R>(f: impl FnOnce(&mut GenericArray<u8, L>) -> R) -> R {
+    pub fn temp<R>(f: impl FnOnce(&mut Array<u8, L>) -> R) -> R {
         let mut slf = Self::default();
         f(&mut slf.0)
     }
 
-    /// Convert this array to a non-zeroing GenericArray instance
+    /// Convert this array to a non-zeroing Array instance
     #[inline]
-    pub fn extract(self) -> GenericArray<u8, L> {
+    pub fn extract(self) -> Array<u8, L> {
         self.0.clone()
     }
 
     /// Create a new array instance from a slice of bytes.
-    /// Like <&GenericArray>::from_slice, panics if the length of the slice
+    /// Like <&Array>::from_slice, panics if the length of the slice
     /// is incorrect.
     #[inline]
     pub fn from_slice(data: &[u8]) -> Self {
-        Self::from(GenericArray::from_slice(data))
+        Self::from(<&Array<u8, L>>::try_from(data).expect("Invalid array length"))
     }
 
     /// Get the length of the array
@@ -90,14 +90,14 @@ impl<L: ArrayLength<u8>> ArrayKey<L> {
     }
 }
 
-impl<L: ArrayLength<u8>> AsRef<GenericArray<u8, L>> for ArrayKey<L> {
+impl<L: ArraySize> AsRef<Array<u8, L>> for ArrayKey<L> {
     #[inline(always)]
-    fn as_ref(&self) -> &GenericArray<u8, L> {
+    fn as_ref(&self) -> &Array<u8, L> {
         &self.0
     }
 }
 
-impl<L: ArrayLength<u8>> Deref for ArrayKey<L> {
+impl<L: ArraySize> Deref for ArrayKey<L> {
     type Target = [u8];
 
     #[inline(always)]
@@ -106,28 +106,28 @@ impl<L: ArrayLength<u8>> Deref for ArrayKey<L> {
     }
 }
 
-impl<L: ArrayLength<u8>> Default for ArrayKey<L> {
+impl<L: ArraySize> Default for ArrayKey<L> {
     #[inline(always)]
     fn default() -> Self {
-        Self(GenericArray::default(), PhantomPinned)
+        Self(Array::default(), PhantomPinned)
     }
 }
 
-impl<L: ArrayLength<u8>> From<&GenericArray<u8, L>> for ArrayKey<L> {
+impl<L: ArraySize> From<&Array<u8, L>> for ArrayKey<L> {
     #[inline(always)]
-    fn from(key: &GenericArray<u8, L>) -> Self {
+    fn from(key: &Array<u8, L>) -> Self {
         Self(key.clone(), PhantomPinned)
     }
 }
 
-impl<L: ArrayLength<u8>> From<GenericArray<u8, L>> for ArrayKey<L> {
+impl<L: ArraySize> From<Array<u8, L>> for ArrayKey<L> {
     #[inline(always)]
-    fn from(key: GenericArray<u8, L>) -> Self {
+    fn from(key: Array<u8, L>) -> Self {
         Self(key, PhantomPinned)
     }
 }
 
-impl<'a, L: ArrayLength<u8>, const N: usize> TryFrom<&'a ArrayKey<L>> for &'a [u8; N] {
+impl<'a, L: ArraySize, const N: usize> TryFrom<&'a ArrayKey<L>> for &'a [u8; N] {
     type Error = TryFromSliceError;
 
     #[inline(always)]
@@ -136,7 +136,7 @@ impl<'a, L: ArrayLength<u8>, const N: usize> TryFrom<&'a ArrayKey<L>> for &'a [u
     }
 }
 
-impl<L: ArrayLength<u8>> Debug for ArrayKey<L> {
+impl<L: ArraySize> Debug for ArrayKey<L> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if cfg!(test) {
             f.debug_tuple("ArrayKey").field(&self.0).finish()
@@ -146,27 +146,27 @@ impl<L: ArrayLength<u8>> Debug for ArrayKey<L> {
     }
 }
 
-impl<L: ArrayLength<u8>> ConstantTimeEq for ArrayKey<L> {
+impl<L: ArraySize> ConstantTimeEq for ArrayKey<L> {
     fn ct_eq(&self, other: &Self) -> Choice {
-        ConstantTimeEq::ct_eq(self.0.as_ref(), other.0.as_ref())
+        ConstantTimeEq::ct_eq(self.0.as_slice(), other.0.as_slice())
     }
 }
 
-impl<L: ArrayLength<u8>> PartialEq for ArrayKey<L> {
+impl<L: ArraySize> PartialEq for ArrayKey<L> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.ct_eq(other).into()
     }
 }
-impl<L: ArrayLength<u8>> Eq for ArrayKey<L> {}
+impl<L: ArraySize> Eq for ArrayKey<L> {}
 
-impl<L: ArrayLength<u8>> hash::Hash for ArrayKey<L> {
+impl<L: ArraySize> hash::Hash for ArrayKey<L> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl<L: ArrayLength<u8>> Serialize for ArrayKey<L> {
+impl<L: ArraySize> Serialize for ArrayKey<L> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -175,7 +175,7 @@ impl<L: ArrayLength<u8>> Serialize for ArrayKey<L> {
     }
 }
 
-impl<'de, L: ArrayLength<u8>> Deserialize<'de> for ArrayKey<L> {
+impl<'de, L: ArraySize> Deserialize<'de> for ArrayKey<L> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -184,23 +184,23 @@ impl<'de, L: ArrayLength<u8>> Deserialize<'de> for ArrayKey<L> {
     }
 }
 
-impl<L: ArrayLength<u8>> Zeroize for ArrayKey<L> {
+impl<L: ArraySize> Zeroize for ArrayKey<L> {
     fn zeroize(&mut self) {
         self.0.zeroize();
     }
 }
 
-impl<L: ArrayLength<u8>> Drop for ArrayKey<L> {
+impl<L: ArraySize> Drop for ArrayKey<L> {
     fn drop(&mut self) {
         self.zeroize();
     }
 }
 
-struct KeyVisitor<L: ArrayLength<u8>> {
+struct KeyVisitor<L: ArraySize> {
     _pd: PhantomData<L>,
 }
 
-impl<L: ArrayLength<u8>> de::Visitor<'_> for KeyVisitor<L> {
+impl<L: ArraySize> de::Visitor<'_> for KeyVisitor<L> {
     type Value = ArrayKey<L>;
 
     fn expecting(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
@@ -218,7 +218,7 @@ impl<L: ArrayLength<u8>> de::Visitor<'_> for KeyVisitor<L> {
     }
 }
 
-impl<L: ArrayLength<u8>> FromKeyDerivation for ArrayKey<L> {
+impl<L: ArraySize> FromKeyDerivation for ArrayKey<L> {
     fn from_key_derivation<D: KeyDerivation>(mut derive: D) -> Result<Self, Error>
     where
         Self: Sized,

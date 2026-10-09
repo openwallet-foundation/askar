@@ -11,9 +11,9 @@ use zeroize::Zeroizing;
 
 use super::{ed25519::Ed25519KeyPair, HasKeyAlg, HasKeyBackend, KeyAlg};
 use crate::{
+    array::typenum::{U32, U64},
     buffer::{ArrayKey, WriteBuffer},
     error::Error,
-    generic_array::typenum::{U32, U64},
     jwk::{FromJwk, JwkEncoder, JwkParts, ToJwk},
     kdf::KeyExchange,
     random::KeyMaterial,

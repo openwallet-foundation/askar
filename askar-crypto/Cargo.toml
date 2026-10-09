@@ -9,7 +9,7 @@ readme = "README.md"
 repository = "https://github.com/hyperledger/aries-askar/"
 categories = ["cryptography", "no-std"]
 keywords = ["hyperledger", "aries", "didcomm", "ssi"]
-rust-version = "1.67"
+rust-version = "1.94"
 
 [package.metadata.docs.rs]
 features = ["argon2", "std"]
@@ -22,20 +22,20 @@ alloc = []
 any_key = ["alloc"]
 bls = ["bls12_381", "hkdf"]
 chacha = ["chacha20poly1305"]
-crypto_box = ["alloc", "crypto_box_rs", "ed25519", "getrandom"]
+crypto_box = ["alloc", "ed25519", "getrandom", "poly1305", "poly1305/zeroize", "salsa20", "salsa20/zeroize"]
 default = ["alloc", "any_key", "all_keys", "crypto_box"]
 ec_curves = ["elliptic-curve", "k256", "p256", "p384"]
 ed25519 = ["curve25519-dalek", "ed25519-dalek", "x25519-dalek"]
-getrandom = ["rand/getrandom"]
+getrandom = ["rand/sys_rng"]
 std = ["alloc", "serde/std", "serde-json-core/std", "std_rng", "uuid/std"]
-std_rng = ["getrandom", "rand/std", "rand/std_rng"]
+std_rng = ["getrandom", "rand/std", "rand/thread_rng"]
 
 [dev-dependencies]
-base64 = { version = "0.22", default-features = false, features = ["alloc"] }
+base64 = { version = "0.23", default-features = false, features = ["alloc"] }
 ciborium = "0.2"
 criterion = "0.8"
 hex-literal = "1.1"
-serde-json-core = { version = "0.6", default-features = false, features = [
+serde-json-core = { version = "0.7", default-features = false, features = [
     "std",
 ] }
 
@@ -48,67 +48,66 @@ harness = false
 name = "kdf"
 
 [dependencies]
-aead = "0.5"
-aes-core = { package = "aes", version = "0.8", default-features = false, optional = true }
-aes-gcm = { version = "0.10", default-features = false, features = [
+aead = "0.6"
+aes-core = { package = "aes", version = "0.9", default-features = false, optional = true }
+aes-gcm = { version = "0.11", default-features = false, features = [
     "aes",
 ], optional = true }
 arbitrary = { version = "1.4", optional = true, features = ["derive"] }
-argon2 = { version = "0.5", default-features = false, features = [
+argon2 = { version = "0.6", default-features = false, features = [
     "alloc",
     "password-hash",
 ], optional = true }
-base64 = { version = "0.22", default-features = false }
-blake2 = { version = "0.10", default-features = false }
+base64 = { version = "0.23", default-features = false }
+blake2 = { version = "0.11", default-features = false }
 block-modes = { version = "0.9", default-features = false, optional = true }
-bls12_381 = { version = "0.8", default-features = false, features = [
+bls12_381 = { version = "0.9", default-features = false, features = [
     "groups",
     "zeroize",
 ], optional = true }
-cbc = { version = "0.1", default-features = false, optional = true }
-chacha20 = { version = "0.9" } # should match dependency of chacha20poly1305
-chacha20poly1305 = { version = "0.10", default-features = false, optional = true }
-cipher = { version = "0.4", default-features = false, features = [
+cbc = { version = "0.2", default-features = false, optional = true }
+chacha20 = { version = "0.10" } # should match dependency of chacha20poly1305
+chacha20poly1305 = { version = "0.11", default-features = false, optional = true }
+cipher = { version = "0.5", default-features = false, features = [
     "block-padding",
 ], optional = true }
-crypto_box_rs = { package = "crypto_box", version = "0.9", default-features = false, features = [
-    "salsa20",
-], optional = true }
-curve25519-dalek = { version = "4", default-features = false, optional = true }
-digest = "0.10"
-ed25519-dalek = { version = "2", default-features = false, features = [
+curve25519-dalek = { version = "5", default-features = false, optional = true }
+digest = "0.11"
+ed25519-dalek = { version = "3", default-features = false, features = [
     "zeroize",
 ], optional = true }
-elliptic-curve = { version = "0.13", optional = true }
-group = "0.13"
-hkdf = { version = "0.12", optional = true }
-hmac = { version = "0.12", optional = true }
-k256 = { version = "0.13", default-features = false, features = [
+elliptic-curve = { version = "0.14", optional = true }
+group = "0.14"
+hkdf = { version = "0.13", optional = true }
+hmac = { version = "0.13", optional = true }
+k256 = { version = "0.14", default-features = false, features = [
     "arithmetic",
     "ecdsa",
     "ecdh",
     "sha256",
 ], optional = true }
-p256 = { version = "0.13", default-features = false, features = [
+p256 = { version = "0.14", default-features = false, features = [
     "arithmetic",
     "ecdsa",
     "ecdh",
 ], optional = true }
-p384 = { version = "0.13", default-features = false, features = [
+p384 = { version = "0.14", default-features = false, features = [
     "arithmetic",
     "ecdsa",
     "ecdh",
 ], optional = true }
-rand = { version = "0.8", default-features = false }
+poly1305 = { version = "0.9", default-features = false, optional = true }
+rand = { version = "0.10", default-features = false }
+salsa20 = { version = "0.11", default-features = false, optional = true }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-serde-json-core = { version = "0.6", default-features = false }
-sha2 = { version = "0.10", default-features = false }
+serde-json-core = { version = "0.7", default-features = false }
+sha2 = { version = "0.11", default-features = false }
 subtle = "2.4"
 uuid = { version = "1.18", default-features = false, optional = true, features = [
     "v4",
 ] }
-x25519-dalek = { version = "2", default-features = false, features = [
+x25519-dalek = { version = "3", default-features = false, features = [
     "static_secrets",
     "zeroize",
 ], optional = true }
-zeroize = { version = "1.8", features = ["zeroize_derive"] }
+zeroize = { version = "1.9", features = ["zeroize_derive"] }

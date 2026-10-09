@@ -2,17 +2,17 @@
 
 use core::fmt::{self, Debug, Formatter};
 
-use aead::{generic_array::ArrayLength, AeadCore, AeadInPlace, KeyInit, KeySizeUser};
+use aead::{array::ArraySize, AeadCore, AeadInOut, KeyInit, KeySizeUser};
 use aes_gcm::{Aes128Gcm, Aes256Gcm};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
 use super::{AesTypes, HasKeyAlg, HasKeyBackend, KeyAlg};
 use crate::{
+    array::{typenum::Unsigned, Array},
     buffer::{ArrayKey, ResizeBuffer, Writer},
     encrypt::{KeyAeadInPlace, KeyAeadMeta, KeyAeadParams},
     error::Error,
-    generic_array::{typenum::Unsigned, GenericArray},
     jwk::{FromJwk, JwkEncoder, JwkParts, ToJwk},
     kdf::{FromKeyDerivation, FromKeyExchange, KeyDerivation, KeyExchange},
     random::KeyMaterial,
@@ -31,7 +31,7 @@ pub static JWK_KEY_TYPE: &str = "oct";
 /// Trait implemented by supported AES authenticated encryption algorithms
 pub trait AesType: 'static {
     /// The size of the key secret bytes
-    type KeySize: ArrayLength<u8>;
+    type KeySize: ArraySize;
 
     /// The associated algorithm type
     const ALG_TYPE: AesTypes;
@@ -202,7 +202,7 @@ impl<T: AeadCore + AesType> KeyAeadMeta for AesKey<T> {
 // generic implementation applying to AesGcm
 impl<T> KeyAeadInPlace for AesKey<T>
 where
-    T: KeyInit + AeadInPlace + AesType<KeySize = <T as KeySizeUser>::KeySize>,
+    T: KeyInit + AeadInOut + AesType<KeySize = <T as KeySizeUser>::KeySize>,
 {
     /// Encrypt a secret value in place, appending the verification tag
     fn encrypt_in_place(
@@ -216,7 +216,11 @@ where
         }
         let enc = <T as KeyInit>::new(self.0.as_ref());
         let tag = enc
-            .encrypt_in_place_detached(GenericArray::from_slice(nonce), aad, buffer.as_mut())
+            .encrypt_inout_detached(
+                nonce.try_into().map_err(|_| err_msg!(InvalidNonce))?,
+                aad,
+                buffer.as_mut().into(),
+            )
             .map_err(|_| err_msg!(Encryption, "AEAD encryption error"))?;
         let ctext_len = buffer.as_ref().len();
         buffer.buffer_write(&tag[..])?;
@@ -238,13 +242,13 @@ where
             return Err(err_msg!(Encryption, "Invalid size for encrypted data"));
         }
         let tag_start = buf_len - T::TagSize::USIZE;
-        let mut tag = GenericArray::default();
+        let mut tag = Array::default();
         tag.clone_from_slice(&buffer.as_ref()[tag_start..]);
         let enc = <T as KeyInit>::new(self.0.as_ref());
-        enc.decrypt_in_place_detached(
-            GenericArray::from_slice(nonce),
+        enc.decrypt_inout_detached(
+            nonce.try_into().map_err(|_| err_msg!(InvalidNonce))?,
             aad,
-            &mut buffer.as_mut()[..tag_start],
+            (&mut buffer.as_mut()[..tag_start]).into(),
             &tag,
         )
         .map_err(|_| err_msg!(Encryption, "AEAD decryption error"))?;

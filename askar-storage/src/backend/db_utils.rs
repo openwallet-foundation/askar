@@ -4,8 +4,9 @@ use std::sync::Arc;
 
 use sqlx::{
     pool::PoolConnection, Arguments, Database, Encode, Error as SqlxError, IntoArguments, Pool,
-    TransactionManager, Type,
+    Type,
 };
+use sqlx_core::transaction::TransactionManager;
 
 use crate::{
     entry::{EncEntryTag, Entry, EntryKind, EntryTag, TagFilter},
@@ -228,7 +229,7 @@ pub trait ExtDatabase: Database {
         conn: &mut Connection<Self>,
         _nested: bool,
     ) -> BoxFuture<'_, Result<(), SqlxError>> {
-        <Self as Database>::TransactionManager::begin(conn, None)
+        Box::pin(<Self as Database>::TransactionManager::begin(conn, None))
     }
 }
 
@@ -367,12 +368,12 @@ pub struct EncScanEntry {
     pub tags: Vec<u8>,
 }
 
-pub struct QueryParams<'q, DB: Database> {
-    args: DB::Arguments<'q>,
+pub struct QueryParams<DB: Database> {
+    args: DB::Arguments,
     count: usize,
 }
 
-impl<'q, DB: Database> QueryParams<'q, DB> {
+impl<DB: Database> QueryParams<DB> {
     pub fn new() -> Self {
         Self {
             args: Default::default(),
@@ -380,7 +381,7 @@ impl<'q, DB: Database> QueryParams<'q, DB> {
         }
     }
 
-    pub fn extend<I, T>(&mut self, vals: I)
+    pub fn extend<'q, I, T>(&mut self, vals: I)
     where
         I: IntoIterator<Item = T>,
         T: 'q + Send + sqlx::Encode<'q, DB> + sqlx::Type<DB>,
@@ -391,7 +392,7 @@ impl<'q, DB: Database> QueryParams<'q, DB> {
         }
     }
 
-    pub fn push<T>(&mut self, val: T)
+    pub fn push<'q, T>(&mut self, val: T)
     where
         T: 'q + Send + sqlx::Encode<'q, DB> + sqlx::Type<DB>,
     {
@@ -404,12 +405,12 @@ impl<'q, DB: Database> QueryParams<'q, DB> {
     }
 }
 
-impl<'q, DB> IntoArguments<'q, DB> for QueryParams<'q, DB>
+impl<DB> IntoArguments<DB> for QueryParams<DB>
 where
     DB: Database,
-    DB::Arguments<'q>: IntoArguments<'q, DB>,
+    DB::Arguments: IntoArguments<DB>,
 {
-    fn into_arguments(self) -> DB::Arguments<'q> {
+    fn into_arguments(self) -> DB::Arguments {
         self.args.into_arguments()
     }
 }
@@ -423,7 +424,7 @@ pub trait QueryPrepare {
 
     fn limit_query<'q>(
         mut query: String,
-        args: &mut QueryParams<'q, Self::DB>,
+        args: &mut QueryParams<Self::DB>,
         offset: Option<i64>,
         limit: Option<i64>,
     ) -> String
@@ -618,7 +619,7 @@ pub fn prepare_tags(tags: &[EntryTag]) -> Result<Vec<EntryTag>, Error> {
 
 pub fn extend_query<'q, Q: QueryPrepare>(
     query: &str,
-    args: &mut QueryParams<'q, Q::DB>,
+    args: &mut QueryParams<Q::DB>,
     tag_filter: Option<(String, Vec<Vec<u8>>)>,
     offset: Option<i64>,
     limit: Option<i64>,

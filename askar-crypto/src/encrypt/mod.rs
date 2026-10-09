@@ -1,9 +1,9 @@
 //! AEAD encryption traits and parameters
 
-use crate::{buffer::ResizeBuffer, error::Error, generic_array::ArrayLength};
+use crate::{array::ArraySize, buffer::ResizeBuffer, error::Error};
 
 #[cfg(feature = "getrandom")]
-use crate::generic_array::GenericArray;
+use crate::array::Array;
 
 #[cfg(feature = "crypto_box")]
 #[cfg_attr(docsrs, doc(cfg(feature = "crypto_box")))]
@@ -40,14 +40,14 @@ pub trait KeyAeadInPlace {
 /// For concrete key types with fixed nonce and tag sizes
 pub trait KeyAeadMeta {
     /// The size of the AEAD nonce
-    type NonceSize: ArrayLength<u8>;
+    type NonceSize: ArraySize;
     /// The size of the AEAD tag
-    type TagSize: ArrayLength<u8>;
+    type TagSize: ArraySize;
 
     /// Generate a new random nonce
     #[cfg(feature = "getrandom")]
-    fn random_nonce() -> GenericArray<u8, Self::NonceSize> {
-        let mut nonce = GenericArray::default();
+    fn random_nonce() -> Array<u8, Self::NonceSize> {
+        let mut nonce = Array::default();
         crate::random::fill_random(nonce.as_mut_slice());
         nonce
     }

@@ -34,8 +34,6 @@ use crate::error::Error;
 
 pub type CallbackId = i64;
 
-ffi_support::define_string_destructor!(askar_string_free);
-
 pub struct EnsureCallback<T, F: Fn(Result<T, Error>)> {
     f: F,
     resolved: bool,
@@ -64,6 +62,22 @@ impl<T, F: Fn(Result<T, Error>)> Drop for EnsureCallback<T, F> {
             (self.f)(Err(err_msg!(Unexpected)));
         }
     }
+}
+
+/// Free a string which was allocated by this library and returned to the caller.
+///
+/// # Safety
+///
+/// `s` must be null, or a string pointer returned by this library which has not
+/// already been freed.
+#[no_mangle]
+pub unsafe extern "C" fn askar_string_free(s: *mut std::os::raw::c_char) {
+    // Aborting is better than unwinding across the FFI boundary
+    ffi_support::abort_on_panic::with_abort_on_panic(|| {
+        if !s.is_null() {
+            ffi_support::destroy_c_string(s)
+        }
+    });
 }
 
 #[no_mangle]
