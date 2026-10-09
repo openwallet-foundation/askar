@@ -695,6 +695,16 @@ ErrorCode askar_store_set_default_profile(StoreHandle handle,
                                           void (*cb)(CallbackId cb_id, ErrorCode err),
                                           CallbackId cb_id);
 
+/**
+ * Free a string which was allocated by this library and returned to the caller.
+ *
+ * # Safety
+ *
+ * `s` must be null, or a string pointer returned by this library which has not
+ * already been freed.
+ */
+void askar_string_free(char *s);
+
 ErrorCode askar_string_list_count(StringListHandle handle, int32_t *count);
 
 void askar_string_list_free(StringListHandle handle);
