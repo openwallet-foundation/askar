@@ -384,7 +384,7 @@ impl BackendSession for DbSession<Postgres> {
                 false,
             )?;
             let mut active = acquire_session(&mut *self).await?;
-            let count = sqlx::query_scalar_with(query.as_str(), params)
+            let count = sqlx::query_scalar_with(sqlx::AssertSqlSafe(query), params)
                 .fetch_one(active.connection_mut())
                 .await
                 .map_err(err_map!(Backend, "Error performing count query"))?;
@@ -526,7 +526,7 @@ impl BackendSession for DbSession<Postgres> {
             )?;
 
             let mut active = acquire_session(&mut *self).await?;
-            let removed = sqlx::query_with(query.as_str(), params)
+            let removed = sqlx::query_with(sqlx::AssertSqlSafe(query), params)
                 .execute(active.connection_mut())
                 .await?
                 .rows_affected();
@@ -637,7 +637,7 @@ impl QueryPrepare for PostgresBackend {
 
     fn limit_query<'q>(
         mut query: String,
-        args: &mut QueryParams<'q, Self::DB>,
+        args: &mut QueryParams<Self::DB>,
         offset: Option<i64>,
         limit: Option<i64>,
     ) -> String
@@ -821,7 +821,7 @@ fn perform_scan(
         let mut batch = Vec::with_capacity(PAGE_SIZE);
 
         let mut acquired = acquire_session(&mut active).await?;
-        let mut rows = sqlx::query_with(query.as_str(), params).fetch(acquired.connection_mut());
+        let mut rows = sqlx::query_with(sqlx::AssertSqlSafe(query), params).fetch(acquired.connection_mut());
         while let Some(row) = rows.try_next().await? {
             let tags = row.try_get::<Option<String>, _>(5)?.map(String::into_bytes).unwrap_or_default();
             let kind: i16 = row.try_get(1)?;
