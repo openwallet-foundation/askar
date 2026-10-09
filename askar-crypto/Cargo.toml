@@ -31,11 +31,11 @@ std = ["alloc", "serde/std", "serde-json-core/std", "std_rng", "uuid/std"]
 std_rng = ["getrandom", "rand/std", "rand/thread_rng"]
 
 [dev-dependencies]
-base64 = { version = "0.22", default-features = false, features = ["alloc"] }
+base64 = { version = "0.23", default-features = false, features = ["alloc"] }
 ciborium = "0.2"
 criterion = "0.8"
 hex-literal = "1.1"
-serde-json-core = { version = "0.6", default-features = false, features = [
+serde-json-core = { version = "0.7", default-features = false, features = [
     "std",
 ] }
 
@@ -58,7 +58,7 @@ argon2 = { version = "0.6", default-features = false, features = [
     "alloc",
     "password-hash",
 ], optional = true }
-base64 = { version = "0.22", default-features = false }
+base64 = { version = "0.23", default-features = false }
 blake2 = { version = "0.11", default-features = false }
 block-modes = { version = "0.9", default-features = false, optional = true }
 bls12_381 = { version = "0.9", default-features = false, features = [
@@ -100,7 +100,7 @@ poly1305 = { version = "0.9", default-features = false, optional = true }
 rand = { version = "0.10", default-features = false }
 salsa20 = { version = "0.11", default-features = false, optional = true }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-serde-json-core = { version = "0.6", default-features = false }
+serde-json-core = { version = "0.7", default-features = false }
 sha2 = { version = "0.11", default-features = false }
 subtle = "2.4"
 uuid = { version = "1.18", default-features = false, optional = true, features = [
@@ -110,4 +110,4 @@ x25519-dalek = { version = "3", default-features = false, features = [
     "static_secrets",
     "zeroize",
 ], optional = true }
-zeroize = { version = "1.8", features = ["zeroize_derive"] }
+zeroize = { version = "1.9", features = ["zeroize_derive"] }
