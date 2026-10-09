@@ -2,8 +2,9 @@
 
 use sqlx::{
     postgres::{PgConnection, Postgres},
-    Connection, Database, TransactionManager,
+    Connection, Database,
 };
+use sqlx_core::transaction::TransactionManager;
 use std::time::Duration;
 
 use super::provision::{init_db, reset_db, PostgresStoreOptions};
