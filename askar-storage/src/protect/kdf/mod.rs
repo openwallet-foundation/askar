@@ -2,7 +2,7 @@
 
 use super::store_key::{StoreKey, PREFIX_KDF};
 use crate::{
-    crypto::{buffer::ArrayKey, generic_array::ArrayLength},
+    crypto::{array::ArraySize, buffer::ArrayKey},
     error::Error,
     options::Options,
 };
@@ -79,7 +79,7 @@ impl KdfMethod {
     }
 }
 
-fn parse_salt<L: ArrayLength<u8>>(detail: &str) -> Result<ArrayKey<L>, Error> {
+fn parse_salt<L: ArraySize>(detail: &str) -> Result<ArrayKey<L>, Error> {
     let opts = Options::parse_uri(detail)?;
     if let Some(salt) = opts.query.get("salt") {
         ArrayKey::<L>::try_new_with(|arr| {

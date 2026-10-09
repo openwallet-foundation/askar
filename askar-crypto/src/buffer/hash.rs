@@ -2,7 +2,7 @@ use core::fmt::Debug;
 
 use digest::Digest;
 
-use crate::generic_array::GenericArray;
+use crate::array::Array;
 
 use crate::{buffer::WriteBuffer, error::Error};
 
@@ -17,7 +17,7 @@ impl<D: Digest> HashBuffer<D> {
     }
 
     /// Finalize the hasher and extract the result
-    pub fn finalize(self) -> GenericArray<u8, D::OutputSize> {
+    pub fn finalize(self) -> Array<u8, D::OutputSize> {
         self.0.finalize()
     }
 }

@@ -74,7 +74,7 @@ impl OptAttr<'_> {
 
     pub fn decode_base64(&self, output: &mut [u8]) -> Result<usize, Error> {
         if let Some(s) = self.0 {
-            let max_input = (output.len() * 4 + 2) / 3; // ceil(4*n/3)
+            let max_input = (output.len() * 4).div_ceil(3); // ceil(4*n/3)
             if s.len() > max_input {
                 Err(err_msg!(Invalid, "Base64 length exceeds max"))
             } else {

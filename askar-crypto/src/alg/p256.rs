@@ -13,17 +13,17 @@ use p256::{
     elliptic_curve::{
         self,
         ecdh::diffie_hellman,
-        sec1::{Coordinates, FromEncodedPoint, ToEncodedPoint},
+        sec1::{Coordinates, FromSec1Point, ToSec1Point},
     },
-    EncodedPoint, PublicKey, SecretKey,
+    PublicKey, Sec1Point, SecretKey,
 };
 use subtle::ConstantTimeEq;
 
 use super::{ec_common, EcCurves, HasKeyAlg, HasKeyBackend, KeyAlg};
 use crate::{
+    array::typenum::{U32, U33, U65},
     buffer::{ArrayKey, WriteBuffer},
     error::Error,
-    generic_array::typenum::{U32, U33, U65},
     jwk::{FromJwk, JwkEncoder, JwkParts, ToJwk},
     kdf::KeyExchange,
     random::KeyMaterial,
@@ -155,7 +155,7 @@ impl KeyGen for P256KeyPair {
 impl KeySecretBytes for P256KeyPair {
     fn from_secret_bytes(key: &[u8]) -> Result<Self, Error> {
         if key.len() == SECRET_KEY_LENGTH {
-            if let Ok(sk) = SecretKey::from_bytes(key.into()) {
+            if let Ok(sk) = SecretKey::from_slice(key) {
                 return Ok(Self::from_secret_key(sk));
             }
         }
@@ -194,7 +194,7 @@ impl KeypairBytes for P256KeyPair {
         if let Some(sk) = self.secret.as_ref() {
             ArrayKey::<<Self as KeypairMeta>::KeypairSize>::temp(|arr| {
                 ec_common::write_sk(sk, &mut arr[..SECRET_KEY_LENGTH]);
-                let pk_enc = self.public.to_encoded_point(true);
+                let pk_enc = self.public.to_sec1_point(true);
                 arr[SECRET_KEY_LENGTH..].copy_from_slice(pk_enc.as_bytes());
                 f(Some(&*arr))
             })
@@ -214,7 +214,7 @@ impl KeyPublicBytes for P256KeyPair {
     }
 
     fn with_public_bytes<O>(&self, f: impl FnOnce(&[u8]) -> O) -> O {
-        f(self.public.to_encoded_point(true).as_bytes())
+        f(self.public.to_sec1_point(true).as_bytes())
     }
 }
 
@@ -266,7 +266,7 @@ impl KeySigVerify for P256KeyPair {
 
 impl ToJwk for P256KeyPair {
     fn encode_jwk(&self, enc: &mut dyn JwkEncoder) -> Result<(), Error> {
-        let pk_enc = self.public.to_encoded_point(false);
+        let pk_enc = self.public.to_sec1_point(false);
         let (x, y) = match pk_enc.coordinates() {
             Coordinates::Identity => {
                 return Err(err_msg!(
@@ -317,8 +317,8 @@ impl FromJwk for P256KeyPair {
                 Ok(())
             }
         })?;
-        let pk = Option::from(PublicKey::from_encoded_point(
-            &EncodedPoint::from_affine_coordinates(pk_x.as_ref(), pk_y.as_ref(), false),
+        let pk = Option::from(PublicKey::from_sec1_point(
+            &Sec1Point::from_affine_coordinates(pk_x.as_ref(), pk_y.as_ref(), false),
         ))
         .ok_or_else(|| err_msg!(InvalidKeyData))?;
         if jwk.d.is_some() {

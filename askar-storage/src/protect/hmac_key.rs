@@ -3,15 +3,18 @@ use std::{
     marker::PhantomData,
 };
 
-use digest::crypto_common::BlockSizeUser;
-use hmac::{digest::Digest, Mac, SimpleHmac};
+use digest::common::BlockSizeUser;
+use hmac::{
+    digest::{Digest, KeyInit},
+    Mac, SimpleHmac,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     crypto::{
         self,
+        array::{typenum::Unsigned, Array, ArraySize},
         buffer::ArrayKey,
-        generic_array::{typenum::Unsigned, ArrayLength, GenericArray},
         kdf::KeyDerivation,
         random::KeyMaterial,
         repr::KeyGen,
@@ -27,9 +30,9 @@ use crate::{
         serialize = "ArrayKey<L>: Serialize"
     )
 )]
-pub struct HmacKey<H, L: ArrayLength<u8>>(ArrayKey<L>, PhantomData<H>);
+pub struct HmacKey<H, L: ArraySize>(ArrayKey<L>, PhantomData<H>);
 
-impl<H, L: ArrayLength<u8>> HmacKey<H, L> {
+impl<H, L: ArraySize> HmacKey<H, L> {
     #[allow(dead_code)]
     pub fn from_slice(key: &[u8]) -> Result<Self, Error> {
         if key.len() != L::USIZE {
@@ -39,19 +42,19 @@ impl<H, L: ArrayLength<u8>> HmacKey<H, L> {
     }
 }
 
-impl<H, L: ArrayLength<u8>> AsRef<[u8]> for HmacKey<H, L> {
+impl<H, L: ArraySize> AsRef<[u8]> for HmacKey<H, L> {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
 
-impl<H, L: ArrayLength<u8>> AsRef<GenericArray<u8, L>> for HmacKey<H, L> {
-    fn as_ref(&self) -> &GenericArray<u8, L> {
+impl<H, L: ArraySize> AsRef<Array<u8, L>> for HmacKey<H, L> {
+    fn as_ref(&self) -> &Array<u8, L> {
         self.0.as_ref()
     }
 }
 
-impl<H, L: ArrayLength<u8>> Debug for HmacKey<H, L> {
+impl<H, L: ArraySize> Debug for HmacKey<H, L> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if cfg!(test) {
             f.debug_tuple("HmacKey").field(&self.0).finish()
@@ -61,14 +64,14 @@ impl<H, L: ArrayLength<u8>> Debug for HmacKey<H, L> {
     }
 }
 
-impl<H, L: ArrayLength<u8>> PartialEq for HmacKey<H, L> {
+impl<H, L: ArraySize> PartialEq for HmacKey<H, L> {
     fn eq(&self, other: &Self) -> bool {
         self.0.as_ref() == other.0.as_ref()
     }
 }
-impl<H, L: ArrayLength<u8>> Eq for HmacKey<H, L> {}
+impl<H, L: ArraySize> Eq for HmacKey<H, L> {}
 
-impl<H, L: ArrayLength<u8>> KeyGen for HmacKey<H, L> {
+impl<H, L: ArraySize> KeyGen for HmacKey<H, L> {
     fn generate(rng: impl KeyMaterial) -> Result<Self, crate::crypto::Error> {
         Ok(Self(ArrayKey::generate(rng), PhantomData))
     }
@@ -82,7 +85,7 @@ pub trait HmacDerive {
         -> HmacDeriver<'d, Self::Hash, Self::Key>;
 }
 
-impl<H, L: ArrayLength<u8>> HmacDerive for HmacKey<H, L>
+impl<H, L: ArraySize> HmacDerive for HmacKey<H, L>
 where
     H: Digest + BlockSizeUser,
 {
@@ -135,7 +138,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crypto::generic_array::typenum::U32;
+    use crate::crypto::array::typenum::U32;
     use sha2::Sha256;
 
     #[test]

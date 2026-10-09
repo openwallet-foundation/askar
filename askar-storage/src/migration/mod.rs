@@ -10,7 +10,7 @@ use self::strategy::Strategy;
 use crate::backend::sqlite::SqliteStoreOptions;
 use crate::backend::Backend;
 use crate::crypto::alg::chacha20::{Chacha20Key, C20P};
-use crate::crypto::generic_array::typenum::U32;
+use crate::crypto::array::typenum::U32;
 use crate::entry::EncEntryTag;
 use crate::error::Error;
 use crate::protect::kdf::Argon2Level;

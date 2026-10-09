@@ -6,9 +6,9 @@ use super::EntryEncryptor;
 use crate::{
     crypto::{
         alg::chacha20::{Chacha20Key, C20P},
+        array::typenum::{Unsigned, U32},
         buffer::{ArrayKey, ResizeBuffer, SecretBytes, WriteBuffer},
         encrypt::{KeyAeadInPlace, KeyAeadMeta},
-        generic_array::typenum::{Unsigned, U32},
         kdf::FromKeyDerivation,
         repr::KeyGen,
     },

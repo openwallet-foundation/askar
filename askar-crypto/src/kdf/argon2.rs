@@ -4,8 +4,8 @@ pub use argon2::{Algorithm, Version};
 
 use super::KeyDerivation;
 use crate::{
+    array::typenum::{Unsigned, U16},
     error::Error,
-    generic_array::typenum::{Unsigned, U16},
 };
 
 /// The size of the password salt
