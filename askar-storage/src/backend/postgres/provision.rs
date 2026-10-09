@@ -164,7 +164,7 @@ impl PostgresStoreOptions {
                     "CREATE DATABASE \"{}\" OWNER \"{}\"",
                     self.name, self.username
                 );
-                match admin_conn.execute(create_q.as_str()).await {
+                match admin_conn.execute(sqlx::AssertSqlSafe(create_q)).await {
                     Ok(_) => (),
                     Err(SqlxError::Database(db_err))
                         if db_err.code() == Some(Cow::Borrowed("23505"))
@@ -298,7 +298,7 @@ impl PostgresStoreOptions {
         // any character except NUL is allowed in an identifier.
         // double quotes must be escaped, but we just disallow those
         let drop_q = format!("DROP DATABASE \"{}\"", self.name);
-        let res = match admin_conn.execute(drop_q.as_str()).await {
+        let res = match admin_conn.execute(sqlx::AssertSqlSafe(drop_q)).await {
             Ok(_) => Ok(true),
             Err(SqlxError::Database(db_err)) if db_err.code() == Some(Cow::Borrowed("3D000")) => {
                 // invalid catalog name is raised if the database does not exist
@@ -347,7 +347,7 @@ pub(crate) async fn init_db(
     enc_profile_key: Vec<u8>,
     schema: &str,
 ) -> Result<ProfileId, Error> {
-    txn.execute(
+    txn.execute(sqlx::AssertSqlSafe(
         format!(r#"
         CREATE SCHEMA IF NOT EXISTS "{schema}";
 
@@ -393,8 +393,8 @@ pub(crate) async fn init_db(
         CREATE INDEX ix_items_tags_item_id ON "{schema}".items_tags(item_id);
         CREATE INDEX ix_items_tags_name_enc ON "{schema}".items_tags(name, SUBSTR(value, 1, 12)) INCLUDE (item_id) WHERE plaintext=0;
         CREATE INDEX ix_items_tags_name_plain ON "{schema}".items_tags(name, value) INCLUDE (item_id) WHERE plaintext=1;
-    "#).as_str(),
-    )
+    "#),
+    ))
     .await
     .map_err(err_map!(Backend, "Error creating database tables"))?;
 

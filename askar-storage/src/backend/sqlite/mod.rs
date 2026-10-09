@@ -11,8 +11,9 @@ use futures_lite::{
 use sqlx::{
     pool::PoolConnection,
     sqlite::{Sqlite, SqlitePool},
-    Acquire, Database, Error as SqlxError, Row, TransactionManager,
+    Acquire, Database, Error as SqlxError, Row,
 };
+use sqlx_core::transaction::TransactionManager;
 
 use super::{
     db_utils::{
@@ -367,7 +368,7 @@ impl BackendSession for DbSession<Sqlite> {
                 false,
             )?;
             let mut active = acquire_session(&mut *self).await?;
-            let count = sqlx::query_scalar_with(query.as_str(), params)
+            let count = sqlx::query_scalar_with(sqlx::AssertSqlSafe(query), params)
                 .fetch_one(active.connection_mut())
                 .await
                 .map_err(err_map!(Backend, "Error performing count query"))?;
@@ -498,7 +499,7 @@ impl BackendSession for DbSession<Sqlite> {
             )?;
 
             let mut active = acquire_session(&mut *self).await?;
-            let removed = sqlx::query_with(query.as_str(), params)
+            let removed = sqlx::query_with(sqlx::AssertSqlSafe(query), params)
                 .execute(active.connection_mut())
                 .await?
                 .rows_affected();
@@ -767,7 +768,7 @@ fn perform_scan(
         let mut batch = Vec::with_capacity(PAGE_SIZE);
 
         let mut acquired = acquire_session(&mut active).await?;
-        let mut rows = sqlx::query_with(query.as_str(), params).fetch(acquired.connection_mut());
+        let mut rows = sqlx::query_with(sqlx::AssertSqlSafe(query), params).fetch(acquired.connection_mut());
         while let Some(row) = rows.try_next().await? {
             let kind: u32 = row.try_get(1)?;
             let kind = EntryKind::try_from(kind as usize)?;
