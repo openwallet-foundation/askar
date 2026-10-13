@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
+use std::time::Duration;
 
 use sqlx::{
     pool::PoolConnection, Arguments, Database, Encode, Error as SqlxError, IntoArguments, Pool,
@@ -11,7 +12,7 @@ use sqlx_core::transaction::TransactionManager;
 use crate::{
     entry::{EncEntryTag, Entry, EntryKind, EntryTag, TagFilter},
     error::Error,
-    future::BoxFuture,
+    future::{spawn_ok, timeout, BoxFuture},
     protect::{EntryEncryptor, KeyCache, PassKey, ProfileId, ProfileKey, StoreKey, StoreKeyMethod},
     wql::{
         sql::TagSqlEncoder,
@@ -20,6 +21,13 @@ use crate::{
 };
 
 use super::OrderBy;
+
+/// Maximum time to wait for a transaction to be committed or rolled back on session close
+const CLOSE_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Maximum time to wait for a dropped transaction to be rolled back before the
+/// connection is discarded
+const RELEASE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// cbindgen:ignore
 pub const PAGE_SIZE: usize = 32;
@@ -153,17 +161,37 @@ impl<DB: ExtDatabase> DbSession<DB> {
         if self.txn_depth > 0 {
             self.txn_depth = 0;
             if let DbSessionState::Active { mut conn, .. } = state {
-                if commit {
-                    debug!("Commit transaction on close");
-                    DB::TransactionManager::commit(&mut conn).await
-                } else {
-                    debug!("Roll-back transaction on close");
-                    DB::TransactionManager::rollback(&mut conn).await
+                // The commit or roll-back is itself a query, and would otherwise
+                // block until the TCP layer gives up if the connection is dead.
+                let result = timeout(CLOSE_TIMEOUT, async {
+                    if commit {
+                        debug!("Commit transaction on close");
+                        DB::TransactionManager::commit(&mut conn).await
+                    } else {
+                        debug!("Roll-back transaction on close");
+                        DB::TransactionManager::rollback(&mut conn).await
+                    }
+                })
+                .await;
+                match result {
+                    Some(Ok(())) => release_bounded(conn).await,
+                    Some(Err(err)) => {
+                        // the transaction state is unknown, so don't reuse the connection
+                        drop(conn.detach());
+                        return Err(err_msg!(Backend, "Error closing transaction").with_cause(err));
+                    }
+                    None => {
+                        warn!("Timed out closing transaction, discarding connection");
+                        drop(conn.detach());
+                        return Err(err_msg!(Backend, "Timed out closing transaction"));
+                    }
                 }
-                .map_err(err_map!(Backend, "Error closing transaction"))?;
-                conn.return_to_pool().await;
             } else {
                 warn!("Could not close out transaction: session not active");
+            }
+        } else if let DbSessionState::Active { conn } = state {
+            if DB::BOUNDED_RELEASE {
+                release_bounded(conn).await;
             }
         }
         Ok(())
@@ -172,7 +200,19 @@ impl<DB: ExtDatabase> DbSession<DB> {
 
 impl<DB: ExtDatabase> Drop for DbSession<DB> {
     fn drop(&mut self) {
-        if self.txn_depth > 0 {
+        if DB::BOUNDED_RELEASE {
+            // The release may need to wait on the server, so hand it off to a task.
+            // `spawn_ok` uses askar's own runtime, so this is safe from any thread,
+            // unlike sqlx's drop which needs a current Tokio context. If the runtime
+            // has shut down the future is dropped, leaving the sqlx drop behaviour.
+            self.txn_depth = 0;
+            if let DbSessionState::Active { conn } =
+                std::mem::replace(&mut self.state, DbSessionState::Closed)
+            {
+                debug!("Dropped session: release connection");
+                spawn_ok(release_bounded(conn));
+            }
+        } else if self.txn_depth > 0 {
             self.txn_depth = 0;
             if let Some(conn) = self.connection_mut() {
                 debug!("Dropped transaction: roll-back");
@@ -181,6 +221,37 @@ impl<DB: ExtDatabase> Drop for DbSession<DB> {
         } else {
             debug!("Dropped pool connection")
         }
+    }
+}
+
+/// Roll back any open transaction on a connection and return it to the pool, under
+/// a deadline. If this fails or times out then the connection is discarded: detaching
+/// it from the pool frees its slot immediately, and it is dropped without a graceful
+/// close, as sqlx applies no timeout when closing and a TLS shutdown on a silently
+/// dead connection never completes.
+async fn release_bounded<DB: ExtDatabase>(mut conn: PoolConnection<DB>) {
+    let rollback = async {
+        while DB::TransactionManager::get_transaction_depth(&conn) > 0 {
+            DB::TransactionManager::rollback(&mut conn).await?;
+        }
+        Ok::<_, SqlxError>(())
+    };
+    match timeout(RELEASE_TIMEOUT, rollback).await {
+        Some(Ok(())) => {}
+        res => {
+            warn!("Discarding connection after failed roll-back on release: {res:?}");
+            drop(conn.detach());
+            return;
+        }
+    }
+    // sqlx pings the connection when returning it to the pool. This takes the
+    // connection from `conn` immediately, so if the ping times out then dropping
+    // the future releases the pool slot and closes the socket.
+    if timeout(RELEASE_TIMEOUT, conn.return_to_pool())
+        .await
+        .is_none()
+    {
+        warn!("Discarding connection after timeout returning to pool");
     }
 }
 
@@ -225,6 +296,16 @@ pub(crate) enum DbSessionKey {
 }
 
 pub trait ExtDatabase: Database {
+    /// When true, a dropped or closed session hands its connection to a task which
+    /// rolls back any open transaction and returns it to the pool under a deadline (see
+    /// `release_bounded`), instead of queuing a rollback and returning the connection
+    /// inline, both of which wait on the server without a timeout.
+    ///
+    /// This is a workaround for sqlx not bounding the return-to-pool operation, and
+    /// should be removed once sqlx fixes that (transact-rs/sqlx#4349), checking that
+    /// `drop_transaction_on_dead_connection` still passes against a server using TLS.
+    const BOUNDED_RELEASE: bool = false;
+
     fn start_transaction(
         conn: &mut Connection<Self>,
         _nested: bool,
