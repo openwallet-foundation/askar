@@ -86,6 +86,7 @@ k256 = { version = "0.14", default-features = false, features = [
     "ecdh",
     "sha256",
 ], optional = true }
+ml-dsa = { version = "0.1.1", features = ["getrandom"] }
 p256 = { version = "0.14", default-features = false, features = [
     "arithmetic",
     "ecdsa",
