@@ -1,0 +1,30 @@
+[package]
+name = "askar-explorer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow = "1"
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "form", "tokio"] }
+askar-storage = { path = "../../askar-storage", default-features = false, features = ["any", "inspect", "sqlite", "postgres"] }
+chrono = "0.4"
+clap = { version = "4", features = ["derive", "env"] }
+dotenvy = "0.15"
+hex = "0.4"
+hmac = "0.13"
+rand = "0.10"
+maud = "0.27"
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+rpassword = "7"
+rusqlite = { version = "0.32", features = ["bundled", "hooks", "vtab"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.11"
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "postgres"] }
+similar = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time", "io-std", "io-util"] }
+toml = "0.8"
+
+[dev-dependencies]
+tempfile = "3"

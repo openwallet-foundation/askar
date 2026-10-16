@@ -274,8 +274,10 @@ mod serde_support {
 
     fn parse_query(map: serde_json::Map<String, JsonValue>) -> Result<Query, &'static str> {
         let mut operators: Vec<Query> = Vec::new();
+        let mut entries: Vec<_> = map.into_iter().collect();
+        entries.sort_by(|left, right| left.0.cmp(&right.0));
 
-        for (key, value) in map {
+        for (key, value) in entries {
             if let Some(operator_) = parse_operator(key, value)? {
                 operators.push(operator_);
             }
@@ -756,23 +758,13 @@ mod tests {
 
     #[test]
     fn test_short_and_with_multiple_eq_parse() {
-        let name1 = _random_string(10);
-        let value1 = _random_string(10);
-        let name2 = _random_string(10);
-        let value2 = _random_string(10);
-        let name3 = _random_string(10);
-        let value3 = _random_string(10);
-
-        let json = format!(
-            r#"{{"{}":"{}","{}":"{}","{}":"{}"}}"#,
-            name1, value1, name2, value2, name3, value3,
-        );
+        let json = r#"{"z":"3","a":"1","m":"2"}"#;
 
         let query: Query = ::serde_json::from_str(&json).unwrap();
         let mut clauses = vec![
-            Query::Eq(name1, value1),
-            Query::Eq(name2, value2),
-            Query::Eq(name3, value3),
+            Query::Eq("z".into(), "3".into()),
+            Query::Eq("a".into(), "1".into()),
+            Query::Eq("m".into(), "2".into()),
         ];
         clauses.sort();
 
