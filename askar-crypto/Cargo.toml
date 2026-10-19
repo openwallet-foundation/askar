@@ -27,7 +27,7 @@ default = ["alloc", "any_key", "all_keys", "crypto_box"]
 ec_curves = ["elliptic-curve", "k256", "p256", "p384"]
 ed25519 = ["curve25519-dalek", "ed25519-dalek", "x25519-dalek"]
 getrandom = ["rand/sys_rng"]
-mldsa = ["alloc", "ml-dsa"]
+mldsa = ["alloc", "ml-dsa", "ml-dsa/zeroize"]
 std = ["alloc", "serde/std", "serde-json-core/std", "std_rng", "uuid/std"]
 std_rng = ["getrandom", "rand/std", "rand/thread_rng"]
 

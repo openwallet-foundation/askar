@@ -37,6 +37,11 @@ pub mod chacha20;
 #[cfg_attr(docsrs, doc(cfg(feature = "ed25519")))]
 pub mod ed25519;
 
+#[cfg(feature = "mldsa")]
+#[cfg_attr(docsrs, doc(cfg(feature = "mldsa")))]
+#[allow(missing_docs)]
+pub mod mldsa;
+
 #[cfg(feature = "ed25519")]
 #[cfg_attr(docsrs, doc(cfg(feature = "ed25519")))]
 pub mod x25519;
