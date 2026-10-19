@@ -11,7 +11,7 @@ use ml_dsa::{
 use rand::TryCryptoRng;
 use zeroize::Zeroize;
 
-use super::HasKeyBackend;
+use super::{HasKeyAlg, HasKeyBackend, KeyAlg};
 use crate::{
     array::{
         sizes::{U1312, U1952, U2592},
@@ -30,24 +30,28 @@ pub trait MlDsaVariant: MlDsaParams {
     type PublicKeySize: ArraySize;
     type KeypairSize: ArraySize;
     const JWK_ALG: &'static str;
+    const KEY_ALG: KeyAlg;
 }
 
 impl MlDsaVariant for MlDsa44 {
     type PublicKeySize = U1312;
     type KeypairSize = Sum<U32, U1312>;
     const JWK_ALG: &'static str = "ML-DSA-44";
+    const KEY_ALG: KeyAlg = KeyAlg::MlDsa44;
 }
 
 impl MlDsaVariant for MlDsa65 {
     type PublicKeySize = U1952;
     type KeypairSize = Sum<U32, U1952>;
     const JWK_ALG: &'static str = "ML-DSA-65";
+    const KEY_ALG: KeyAlg = KeyAlg::MlDsa65;
 }
 
 impl MlDsaVariant for MlDsa87 {
     type PublicKeySize = U2592;
     type KeypairSize = Sum<U32, U2592>;
     const JWK_ALG: &'static str = "ML-DSA-87";
+    const KEY_ALG: KeyAlg = KeyAlg::MlDsa87;
 }
 
 /// ML-DSA key pair (FIPS 204).
@@ -149,6 +153,12 @@ impl<P: MlDsaVariant> Debug for MlDsaKeyPair<P> {
 }
 
 impl<P: MlDsaVariant> HasKeyBackend for MlDsaKeyPair<P> {}
+
+impl<P: MlDsaVariant> HasKeyAlg for MlDsaKeyPair<P> {
+    fn algorithm(&self) -> KeyAlg {
+        P::KEY_ALG
+    }
+}
 
 impl<P: MlDsaVariant> KeyMeta for MlDsaKeyPair<P> {
     type KeySize = U32;

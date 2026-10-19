@@ -28,6 +28,9 @@ use super::ed25519::{self, Ed25519KeyPair};
 #[cfg(feature = "ed25519")]
 use super::x25519::{self, X25519KeyPair};
 
+#[cfg(feature = "mldsa")]
+use super::mldsa::{MlDsa44KeyPair, MlDsa65KeyPair, MlDsa87KeyPair};
+
 #[cfg(feature = "k256")]
 use super::k256::{self, K256KeyPair};
 
@@ -237,6 +240,12 @@ fn generate_any_with_rng<R: AllocKey>(alg: KeyAlg, rng: impl KeyMaterial) -> Res
         }
         #[cfg(feature = "ed25519")]
         KeyAlg::Ed25519 => Ed25519KeyPair::generate(rng).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        KeyAlg::MlDsa44 => MlDsa44KeyPair::generate(rng).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        KeyAlg::MlDsa65 => MlDsa65KeyPair::generate(rng).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        KeyAlg::MlDsa87 => MlDsa87KeyPair::generate(rng).map(R::alloc_key),
         #[cfg(feature = "ed25519")]
         KeyAlg::X25519 => X25519KeyPair::generate(rng).map(R::alloc_key),
         #[cfg(feature = "k256")]
@@ -266,6 +275,12 @@ fn from_public_bytes_any<R: AllocKey>(alg: KeyAlg, public: &[u8]) -> Result<R, E
         }
         #[cfg(feature = "ed25519")]
         KeyAlg::Ed25519 => Ed25519KeyPair::from_public_bytes(public).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        KeyAlg::MlDsa44 => MlDsa44KeyPair::from_public_bytes(public).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        KeyAlg::MlDsa65 => MlDsa65KeyPair::from_public_bytes(public).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        KeyAlg::MlDsa87 => MlDsa87KeyPair::from_public_bytes(public).map(R::alloc_key),
         #[cfg(feature = "ed25519")]
         KeyAlg::X25519 => X25519KeyPair::from_public_bytes(public).map(R::alloc_key),
         #[cfg(feature = "k256")]
@@ -333,6 +348,12 @@ fn from_secret_bytes_any<R: AllocKey>(alg: KeyAlg, secret: &[u8]) -> Result<R, E
         }
         #[cfg(feature = "ed25519")]
         KeyAlg::Ed25519 => Ed25519KeyPair::from_secret_bytes(secret).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        KeyAlg::MlDsa44 => MlDsa44KeyPair::from_secret_bytes(secret).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        KeyAlg::MlDsa65 => MlDsa65KeyPair::from_secret_bytes(secret).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        KeyAlg::MlDsa87 => MlDsa87KeyPair::from_secret_bytes(secret).map(R::alloc_key),
         #[cfg(feature = "ed25519")]
         KeyAlg::X25519 => X25519KeyPair::from_secret_bytes(secret).map(R::alloc_key),
         #[cfg(feature = "k256")]
@@ -542,6 +563,12 @@ fn from_jwk_any<R: AllocKey>(jwk: JwkParts<'_>) -> Result<R, Error> {
         ("oct", _, C20P::JWK_ALG) => Chacha20Key::<C20P>::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "chacha")]
         ("oct", _, XC20P::JWK_ALG) => Chacha20Key::<XC20P>::from_jwk_parts(jwk).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        ("AKP", _, "ML-DSA-44") => MlDsa44KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        ("AKP", _, "ML-DSA-65") => MlDsa65KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
+        #[cfg(feature = "mldsa")]
+        ("AKP", _, "ML-DSA-87") => MlDsa87KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "ed25519")]
         ("OKP", ed25519::JWK_CURVE, _) => Ed25519KeyPair::from_jwk_parts(jwk).map(R::alloc_key),
         #[cfg(feature = "ed25519")]
@@ -623,6 +650,21 @@ macro_rules! match_key_alg {
         }
         match_key_alg!(@ $($rest)*; $key, $alg)
     }};
+    (@ MlDsa $($rest:ident)*; $key:ident, $alg:ident) => {{
+        #[cfg(feature = "mldsa")]
+        if $alg == KeyAlg::MlDsa44 {
+            return Ok($key.assume::<MlDsa44KeyPair>())
+        }
+        #[cfg(feature = "mldsa")]
+        if $alg == KeyAlg::MlDsa65 {
+            return Ok($key.assume::<MlDsa65KeyPair>())
+        }
+        #[cfg(feature = "mldsa")]
+        if $alg == KeyAlg::MlDsa87 {
+            return Ok($key.assume::<MlDsa87KeyPair>())
+        }
+        match_key_alg!(@ $($rest)*; $key, $alg)
+    }};
     (@ X25519 $($rest:ident)*; $key:ident, $alg:ident) => {{
         #[cfg(feature = "ed25519")]
         if $alg == KeyAlg::X25519 {
@@ -672,6 +714,7 @@ impl AnyKey {
             Bls,
             Chacha,
             Ed25519,
+            MlDsa,
             K256,
             P256,
             P384,
@@ -686,6 +729,7 @@ impl AnyKey {
             &dyn ToPublicBytes,
             Bls,
             Ed25519,
+            MlDsa,
             K256,
             P256,
             P384,
@@ -791,6 +835,7 @@ impl ToJwk for AnyKey {
             Bls,
             Chacha,
             Ed25519,
+            MlDsa,
             K256,
             P256,
             P384,
@@ -812,6 +857,7 @@ impl KeySign for AnyKey {
             self,
             &dyn KeySign,
             Ed25519,
+            MlDsa,
             K256,
             P256,
             P384,
@@ -832,6 +878,7 @@ impl KeySigVerify for AnyKey {
             self,
             &dyn KeySigVerify,
             Ed25519,
+            MlDsa,
             K256,
             P256,
             P384,
@@ -885,6 +932,56 @@ mod tests {
         assert_eq!(key.algorithm(), KeyAlg::Ed25519);
         assert_eq!(key.key_type_id(), TypeId::of::<Ed25519KeyPair>());
         let _ = key.to_jwk_public(None).unwrap();
+    }
+
+    #[cfg(feature = "mldsa")]
+    #[test]
+    fn mldsa_as_any() {
+        for alg in [KeyAlg::MlDsa44, KeyAlg::MlDsa65, KeyAlg::MlDsa87] {
+            let key = Box::<AnyKey>::random_det(alg, b"mldsa any key test").unwrap();
+            assert_eq!(key.algorithm(), alg);
+
+            let signature = key.create_signature(b"AnyKey ML-DSA", None).unwrap();
+            assert!(key
+                .verify_signature(b"AnyKey ML-DSA", signature.as_ref(), None)
+                .unwrap());
+            assert!(!key
+                .verify_signature(b"other message", signature.as_ref(), None)
+                .unwrap());
+
+            let public = key.to_public_bytes().unwrap();
+            let imported_public = Box::<AnyKey>::from_public_bytes(alg, public.as_ref()).unwrap();
+            assert!(imported_public
+                .verify_signature(b"AnyKey ML-DSA", signature.as_ref(), None)
+                .unwrap());
+
+            let public_jwk = key.to_jwk_public(None).unwrap();
+            let imported_public_jwk = Box::<AnyKey>::from_jwk(&public_jwk).unwrap();
+            assert!(imported_public_jwk
+                .verify_signature(b"AnyKey ML-DSA", signature.as_ref(), None)
+                .unwrap());
+
+            let secret = key.to_secret_bytes().unwrap();
+            let imported_secret = Box::<AnyKey>::from_secret_bytes(alg, secret.as_ref()).unwrap();
+            assert_eq!(imported_secret.algorithm(), alg);
+
+            let jwk = key.to_jwk_secret(None).unwrap();
+            let imported_jwk = Box::<AnyKey>::from_jwk(jwk.as_opt_str().unwrap()).unwrap();
+            assert_eq!(imported_jwk.algorithm(), alg);
+        }
+    }
+
+    #[cfg(feature = "mldsa")]
+    #[test]
+    fn mldsa_is_not_supported_for_exchange_or_encryption() {
+        use crate::buffer::SecretBytes;
+
+        let key = Box::<AnyKey>::random_det(KeyAlg::MlDsa44, b"mldsa unsupported test").unwrap();
+        let mut exchange = SecretBytes::new_with(0, |_| {});
+        assert!(key.write_key_exchange(&key, &mut exchange).is_err());
+
+        let mut data = SecretBytes::from(&b"message"[..]);
+        assert!(key.encrypt_in_place(&mut data, &[], &[]).is_err());
     }
 
     #[cfg(feature = "aes")]

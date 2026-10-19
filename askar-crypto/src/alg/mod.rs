@@ -73,6 +73,12 @@ pub enum KeyAlg {
     Chacha20(Chacha20Types),
     /// Ed25519 signing key
     Ed25519,
+    /// ML-DSA-44 signing key
+    MlDsa44,
+    /// ML-DSA-65 signing key
+    MlDsa65,
+    /// ML-DSA-87 signing key
+    MlDsa87,
     /// Curve25519 elliptic curve key exchange key
     X25519,
     /// Elliptic Curve key for signing or key exchange
@@ -94,6 +100,9 @@ impl KeyAlg {
             Self::Chacha20(Chacha20Types::C20P) => "c20p",
             Self::Chacha20(Chacha20Types::XC20P) => "xc20p",
             Self::Ed25519 => "ed25519",
+            Self::MlDsa44 => "mldsa44",
+            Self::MlDsa65 => "mldsa65",
+            Self::MlDsa87 => "mldsa87",
             Self::X25519 => "x25519",
             Self::EcCurve(EcCurves::Secp256k1) => "k256",
             Self::EcCurve(EcCurves::Secp256r1) => "p256",
@@ -130,6 +139,9 @@ impl FromStr for KeyAlg {
                 Ok(Self::Chacha20(Chacha20Types::XC20P))
             }
             a if a == "ed25519" => Ok(Self::Ed25519),
+            a if a == "mldsa44" => Ok(Self::MlDsa44),
+            a if a == "mldsa65" => Ok(Self::MlDsa65),
+            a if a == "mldsa87" => Ok(Self::MlDsa87),
             a if a == "x25519" => Ok(Self::X25519),
             a if a == "k256" || a == "secp256k1" => Ok(Self::EcCurve(EcCurves::Secp256k1)),
             a if a == "p256" || a == "secp256r1" => Ok(Self::EcCurve(EcCurves::Secp256r1)),
@@ -288,5 +300,18 @@ mod tests {
         assert!(normalize_alg("--TE__ST--").unwrap() == "test");
         assert!(normalize_alg("t-e-s-t").unwrap() != "tes");
         assert!(normalize_alg("t-e-s-t").unwrap() != "testt");
+    }
+
+    #[test]
+    fn mldsa_algorithm_registry() {
+        for (name, alg) in [
+            ("mldsa44", KeyAlg::MlDsa44),
+            ("mldsa65", KeyAlg::MlDsa65),
+            ("mldsa87", KeyAlg::MlDsa87),
+        ] {
+            assert_eq!(name.parse::<KeyAlg>().unwrap(), alg);
+            assert_eq!(alg.as_str(), name);
+            assert_eq!(format!("{alg}"), name);
+        }
     }
 }
