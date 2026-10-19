@@ -122,6 +122,7 @@ impl<'b, B: WriteBuffer> JwkBufferEncoder<'b, B> {
         if let Some(ops) = self.key_ops {
             self.start_attr("key_ops")?;
             let buffer = &mut *self.buffer;
+            buffer.buffer_write(b"[")?;
             for (idx, op) in ops.into_iter().enumerate() {
                 if idx > 0 {
                     buffer.buffer_write(b",\"")?;
@@ -267,14 +268,28 @@ impl<K: ToJwk> Serialize for JwkSerialize<'_, K> {
             }
 
             fn add_as_base64(&mut self, key: &str, value: &[u8]) -> Result<(), Error> {
-                // in practice these values have a limited length.
-                // it would be nice to use collect_str, but that's not supported by serde-json-core.
-                let mut buf = [0u8; 256];
-                let mut w = Writer::from_slice(&mut buf);
-                write_hex_buffer(&mut w, value)?;
-                self.map
-                    .serialize_entry(key, core::str::from_utf8(w.as_ref()).unwrap())
-                    .map_err(|_| err_msg!(Unexpected, "Error serializing JWK"))
+                if value.len() <= 192 {
+                    let mut buf = [0u8; 256];
+                    let mut w = Writer::from_slice(&mut buf);
+                    write_hex_buffer(&mut w, value)?;
+                    self.map
+                        .serialize_entry(key, core::str::from_utf8(w.as_ref()).unwrap())
+                        .map_err(|_| err_msg!(Unexpected, "Error serializing JWK"))
+                } else {
+                    #[cfg(feature = "alloc")]
+                    {
+                        let mut encoded = alloc::string::String::new();
+                        write_hex_buffer(&mut encoded, value)?;
+                        self.map
+                            .serialize_entry(key, encoded.as_str())
+                            .map_err(|_| err_msg!(Unexpected, "Error serializing JWK"))
+                    }
+                    #[cfg(not(feature = "alloc"))]
+                    {
+                        let _ = (key, value);
+                        Err(err_msg!(ExceededBuffer, "Base64 JWK value requires alloc"))
+                    }
+                }
             }
 
             fn mode(&self) -> JwkEncoderMode {
@@ -303,6 +318,60 @@ impl<K: ToJwk> Serialize for JwkSerialize<'_, K> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "alloc")]
+    struct LongValueJwk([u8; 1312]);
+
+    #[cfg(feature = "alloc")]
+    impl super::ToJwk for LongValueJwk {
+        fn encode_jwk(&self, enc: &mut dyn super::JwkEncoder) -> Result<(), crate::Error> {
+            enc.add_str("kty", "AKP")?;
+            enc.add_as_base64("pub", &self.0)
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn serialize_jwk_long_base64_value() {
+        use super::JwkSerialize;
+        use crate::jwk::JwkParts;
+
+        let value = LongValueJwk([42; 1312]);
+        let mut buf = [0u8; 8192];
+        let len = serde_json_core::to_slice(&JwkSerialize::as_public(&value), &mut buf).unwrap();
+        let parts = JwkParts::from_slice(&buf[..len]).unwrap();
+        let mut decoded = [0u8; 1312];
+        assert_eq!(
+            parts.pub_key.decode_base64(&mut decoded).unwrap(),
+            decoded.len()
+        );
+        assert_eq!(decoded, value.0);
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn buffer_encoder_key_ops_is_valid_json() {
+        use super::{JwkBufferEncoder, JwkEncoder, JwkEncoderMode};
+        use crate::{
+            buffer::SecretBytes,
+            jwk::{JwkParts, KeyOps},
+        };
+
+        let mut out = SecretBytes::with_capacity(256);
+        {
+            let mut enc = JwkBufferEncoder::new(&mut out, JwkEncoderMode::PublicKey)
+                .key_ops(Some(KeyOps::Sign | KeyOps::Verify))
+                .kid(Some("test-kid"));
+            enc.add_str("kty", "OKP").unwrap();
+            enc.finalize().unwrap();
+        }
+        let json = core::str::from_utf8(out.as_ref()).unwrap();
+        let parts =
+            JwkParts::try_from_str(json).expect("JwkBufferEncoder output must be valid JSON");
+        assert_eq!(parts.kty, "OKP");
+        assert_eq!(parts.kid, Some("test-kid"));
+        assert_eq!(parts.key_ops, Some(KeyOps::Sign | KeyOps::Verify));
+    }
+
     #[cfg(feature = "ed25519")]
     #[test]
     fn serialize_jwk() {
@@ -325,6 +394,10 @@ mod tests {
             &mut buf,
         )
         .unwrap();
+        assert_eq!(
+            core::str::from_utf8(&buf[..len]).unwrap(),
+            r#"{"crv":"Ed25519","kty":"OKP","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo","d":"nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A","key_ops":["sign","verify"],"kid":"FdFYFzERwC2uCBB46pZQi4GG85LujR8obt-KWRBICVQ"}"#
+        );
         let parts = JwkParts::from_slice(&buf[..len]).unwrap();
         assert_eq!(parts.kty, "OKP");
         assert_eq!(

@@ -34,6 +34,10 @@ pub struct JwkParts<'a> {
     pub d: OptAttr<'a>,
     /// Used by symmetric keys like AES
     pub k: OptAttr<'a>,
+    /// Public key bytes for asymmetric key types that use `pub`
+    pub pub_key: OptAttr<'a>,
+    /// Private key bytes for asymmetric key types that use `priv`
+    pub priv_key: OptAttr<'a>,
     /// Recognized key operations
     pub key_ops: Option<KeyOpsSet>,
 }
@@ -151,6 +155,8 @@ impl<'de> Visitor<'de> for JwkMapVisitor<'de> {
         let mut y = None;
         let mut d = None;
         let mut k = None;
+        let mut pub_key = None;
+        let mut priv_key = None;
         let mut key_ops = None;
 
         while let Some(key) = access.next_key::<&str>()? {
@@ -163,6 +169,8 @@ impl<'de> Visitor<'de> for JwkMapVisitor<'de> {
                 "y" => y = Some(access.next_value()?),
                 "d" => d = Some(access.next_value()?),
                 "k" => k = Some(access.next_value()?),
+                "pub" => pub_key = Some(access.next_value()?),
+                "priv" => priv_key = Some(access.next_value()?),
                 "use" => {
                     let ops = match access.next_value()? {
                         "enc" => {
@@ -190,6 +198,8 @@ impl<'de> Visitor<'de> for JwkMapVisitor<'de> {
                 y: y.into(),
                 d: d.into(),
                 k: k.into(),
+                pub_key: pub_key.into(),
+                priv_key: priv_key.into(),
                 key_ops,
             })
         } else {
@@ -229,6 +239,12 @@ impl Serialize for JwkParts<'_> {
             map.serialize_entry("kid", kid)?;
         }
         map.serialize_entry("kty", self.kty)?;
+        if let Some(priv_key) = self.priv_key.as_opt_str() {
+            map.serialize_entry("priv", priv_key)?;
+        }
+        if let Some(pub_key) = self.pub_key.as_opt_str() {
+            map.serialize_entry("pub", pub_key)?;
+        }
         if let Some(x) = self.x.as_opt_str() {
             map.serialize_entry("x", x)?;
         }
@@ -267,11 +283,44 @@ mod tests {
         assert_eq!(parts.y, None);
         assert_eq!(parts.d, Some("nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A"));
         assert_eq!(parts.k, None);
+        assert_eq!(parts.pub_key, None);
+        assert_eq!(parts.priv_key, None);
         assert_eq!(parts.key_ops, Some(KeyOps::Sign | KeyOps::Verify));
 
         // check serialization
         let mut buf = [0u8; 512];
         let len = serde_json_core::to_slice(&parts, &mut buf[..]).unwrap();
+        assert_eq!(
+            core::str::from_utf8(&buf[..len]).unwrap(),
+            r#"{"crv":"Ed25519","d":"nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A","kid":"FdFYFzERwC2uCBB46pZQi4GG85LujR8obt-KWRBICVQ","kty":"OKP","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo","key_ops":["sign","verify"]}"#
+        );
+        let parts_2 = JwkParts::from_slice(&buf[..len]).unwrap();
+        assert_eq!(parts_2, parts);
+    }
+
+    #[test]
+    fn parse_sample_akp() {
+        let jwk = r#"{
+            "kty": "AKP",
+            "alg": "ML-DSA-44",
+            "pub": "public-key",
+            "priv": "private-key"
+        }"#;
+        let parts = JwkParts::try_from_str(jwk).unwrap();
+        assert_eq!(parts.kty, "AKP");
+        assert_eq!(parts.alg, Some("ML-DSA-44"));
+        assert_eq!(parts.pub_key, Some("public-key"));
+        assert_eq!(parts.priv_key, Some("private-key"));
+        assert_eq!(parts.crv, None);
+        assert_eq!(parts.d, None);
+
+        let mut buf = [0u8; 8192];
+        let len = serde_json_core::to_slice(&parts, &mut buf[..]).unwrap();
+        let serialized = core::str::from_utf8(&buf[..len]).unwrap();
+        assert_eq!(
+            serialized,
+            r#"{"alg":"ML-DSA-44","kty":"AKP","priv":"private-key","pub":"public-key"}"#
+        );
         let parts_2 = JwkParts::from_slice(&buf[..len]).unwrap();
         assert_eq!(parts_2, parts);
     }

@@ -27,6 +27,7 @@ default = ["alloc", "any_key", "all_keys", "crypto_box"]
 ec_curves = ["elliptic-curve", "k256", "p256", "p384"]
 ed25519 = ["curve25519-dalek", "ed25519-dalek", "x25519-dalek"]
 getrandom = ["rand/sys_rng"]
+mldsa = ["alloc", "ml-dsa"]
 std = ["alloc", "serde/std", "serde-json-core/std", "std_rng", "uuid/std"]
 std_rng = ["getrandom", "rand/std", "rand/thread_rng"]
 
@@ -38,6 +39,18 @@ hex-literal = "1.1"
 serde-json-core = { version = "0.7", default-features = false, features = [
     "std",
 ] }
+
+[[example]]
+name = "mldsa_spike"
+required-features = ["mldsa"]
+
+[[example]]
+name = "mldsa_bench"
+required-features = ["mldsa"]
+
+[[example]]
+name = "mldsa_bench_verify"
+required-features = ["mldsa"]
 
 [[bench]]
 harness = false
@@ -86,7 +99,7 @@ k256 = { version = "0.14", default-features = false, features = [
     "ecdh",
     "sha256",
 ], optional = true }
-ml-dsa = { version = "0.1.1", features = ["getrandom"] }
+ml-dsa = { version = "0.1.1", features = ["getrandom"], optional = true }
 p256 = { version = "0.14", default-features = false, features = [
     "arithmetic",
     "ecdsa",
