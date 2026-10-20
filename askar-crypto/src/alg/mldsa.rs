@@ -31,6 +31,7 @@ pub trait MlDsaVariant: MlDsaParams {
     type KeypairSize: ArraySize;
     const JWK_ALG: &'static str;
     const KEY_ALG: KeyAlg;
+    const SIGNATURE_TYPE: SignatureType;
 }
 
 impl MlDsaVariant for MlDsa44 {
@@ -38,6 +39,7 @@ impl MlDsaVariant for MlDsa44 {
     type KeypairSize = Sum<U32, U1312>;
     const JWK_ALG: &'static str = "ML-DSA-44";
     const KEY_ALG: KeyAlg = KeyAlg::MlDsa44;
+    const SIGNATURE_TYPE: SignatureType = SignatureType::MLDSA44;
 }
 
 impl MlDsaVariant for MlDsa65 {
@@ -45,6 +47,7 @@ impl MlDsaVariant for MlDsa65 {
     type KeypairSize = Sum<U32, U1952>;
     const JWK_ALG: &'static str = "ML-DSA-65";
     const KEY_ALG: KeyAlg = KeyAlg::MlDsa65;
+    const SIGNATURE_TYPE: SignatureType = SignatureType::MLDSA65;
 }
 
 impl MlDsaVariant for MlDsa87 {
@@ -52,6 +55,7 @@ impl MlDsaVariant for MlDsa87 {
     type KeypairSize = Sum<U32, U2592>;
     const JWK_ALG: &'static str = "ML-DSA-87";
     const KEY_ALG: KeyAlg = KeyAlg::MlDsa87;
+    const SIGNATURE_TYPE: SignatureType = SignatureType::MLDSA87;
 }
 
 /// ML-DSA key pair (FIPS 204).
@@ -238,7 +242,7 @@ impl<P: MlDsaVariant> KeySign for MlDsaKeyPair<P> {
         sig_type: Option<SignatureType>,
         out: &mut dyn WriteBuffer,
     ) -> Result<(), Error> {
-        if sig_type.is_some() {
+        if sig_type.is_some_and(|sig_type| sig_type != P::SIGNATURE_TYPE) {
             return Err(err_msg!(Unsupported, "Unsupported signature type"));
         }
         let signature = self.sign_inner(message)?;
@@ -253,7 +257,7 @@ impl<P: MlDsaVariant> KeySigVerify for MlDsaKeyPair<P> {
         signature: &[u8],
         sig_type: Option<SignatureType>,
     ) -> Result<bool, Error> {
-        if sig_type.is_some() {
+        if sig_type.is_some_and(|sig_type| sig_type != P::SIGNATURE_TYPE) {
             return Err(err_msg!(Unsupported, "Unsupported signature type"));
         }
         self.verify(message, signature)
@@ -319,12 +323,26 @@ impl<P: MlDsaVariant> Drop for MlDsaKeyPair<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::str::FromStr;
+
     use crate::{
         array::typenum::Unsigned,
         buffer::SecretBytes,
         random::RandomDet,
         repr::{KeyPublicBytes, KeySecretBytes, ToPublicBytes, ToSecretBytes},
     };
+
+    #[test]
+    fn mldsa_signature_types() {
+        for (name, sig_type, len) in [
+            ("ML-DSA-44", SignatureType::MLDSA44, 2420),
+            ("ML-DSA-65", SignatureType::MLDSA65, 3309),
+            ("ML-DSA-87", SignatureType::MLDSA87, 4627),
+        ] {
+            assert_eq!(SignatureType::from_str(name).unwrap(), sig_type);
+            assert_eq!(sig_type.signature_length(), len);
+        }
+    }
 
     fn keypair_round_trip<P: MlDsaVariant>() {
         let keypair = MlDsaKeyPair::<P>::from_secret_bytes(&[0x42; 32]).unwrap();
@@ -355,14 +373,29 @@ mod tests {
         assert!(!keypair
             .verify_signature(b"different message", sig.as_ref(), None)
             .unwrap());
-        assert_eq!(
-            sig.len(),
-            match P::JWK_ALG {
-                "ML-DSA-44" => 2420,
-                "ML-DSA-65" => 3309,
-                _ => 4627,
-            }
-        );
+        assert_eq!(sig.len(), P::SIGNATURE_TYPE.signature_length());
+
+        let typed_sig = keypair
+            .create_signature(b"ML-DSA typed signature", Some(P::SIGNATURE_TYPE))
+            .unwrap();
+        assert_eq!(typed_sig.len(), P::SIGNATURE_TYPE.signature_length());
+        assert!(keypair
+            .verify_signature(
+                b"ML-DSA typed signature",
+                typed_sig.as_ref(),
+                Some(P::SIGNATURE_TYPE),
+            )
+            .unwrap());
+        assert!(keypair
+            .create_signature(b"wrong type", Some(SignatureType::EdDSA))
+            .is_err());
+        assert!(keypair
+            .verify_signature(
+                b"ML-DSA typed signature",
+                typed_sig.as_ref(),
+                Some(SignatureType::EdDSA),
+            )
+            .is_err());
 
         let deterministic_first = keypair.sign(b"deterministic test").unwrap();
         let deterministic_second = keypair.sign(b"deterministic test").unwrap();

@@ -26,7 +26,8 @@ pub trait KeySign: KeySigVerify {
         message: &[u8],
         sig_type: Option<SignatureType>,
     ) -> Result<SecretBytes, Error> {
-        let mut buf = SecretBytes::with_capacity(128);
+        let capacity = sig_type.map_or(128, |sig_type| sig_type.signature_length());
+        let mut buf = SecretBytes::with_capacity(capacity);
         self.write_signature(message, sig_type, &mut buf)?;
         Ok(buf)
     }
@@ -61,6 +62,15 @@ pub enum SignatureType {
     ES384,
     /// Elliptic curve DSA using P-384 and pre-hashed input
     ES384ph,
+    /// ML-DSA-44
+    #[cfg(feature = "mldsa")]
+    MLDSA44,
+    /// ML-DSA-65
+    #[cfg(feature = "mldsa")]
+    MLDSA65,
+    /// ML-DSA-87
+    #[cfg(feature = "mldsa")]
+    MLDSA87,
 }
 
 impl FromStr for SignatureType {
@@ -75,6 +85,12 @@ impl FromStr for SignatureType {
             a if a == "es256kph" => Ok(Self::ES256Kph),
             a if a == "es384" => Ok(Self::ES384),
             a if a == "es384ph" => Ok(Self::ES384ph),
+            #[cfg(feature = "mldsa")]
+            a if a == "mldsa44" => Ok(Self::MLDSA44),
+            #[cfg(feature = "mldsa")]
+            a if a == "mldsa65" => Ok(Self::MLDSA65),
+            #[cfg(feature = "mldsa")]
+            a if a == "mldsa87" => Ok(Self::MLDSA87),
             _ => Err(err_msg!(Unsupported, "Unknown signature algorithm")),
         }
     }
@@ -86,6 +102,23 @@ impl SignatureType {
         match self {
             Self::EdDSA | Self::ES256 | Self::ES256ph | Self::ES256K | Self::ES256Kph => 64,
             Self::ES384 | Self::ES384ph => 96,
+            #[cfg(feature = "mldsa")]
+            Self::MLDSA44 => 2420,
+            #[cfg(feature = "mldsa")]
+            Self::MLDSA65 => 3309,
+            #[cfg(feature = "mldsa")]
+            Self::MLDSA87 => 4627,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SignatureType;
+    #[test]
+    fn known_signature_lengths() {
+        for (sig_type, len) in [(SignatureType::EdDSA, 64), (SignatureType::ES384, 96)] {
+            assert_eq!(sig_type.signature_length(), len);
         }
     }
 }
