@@ -41,6 +41,10 @@ serde-json-core = { version = "0.7", default-features = false, features = [
 ] }
 
 [[example]]
+name = "mldsa_jwk"
+required-features = ["mldsa"]
+
+[[example]]
 name = "mldsa_spike"
 required-features = ["mldsa"]
 

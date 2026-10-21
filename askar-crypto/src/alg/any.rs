@@ -956,18 +956,50 @@ mod tests {
                 .unwrap());
 
             let public_jwk = key.to_jwk_public(None).unwrap();
+            let public_parts = JwkParts::try_from_str(&public_jwk).unwrap();
+            assert_eq!(public_parts.kty, "AKP");
+            assert_eq!(
+                public_parts.alg.as_opt_str(),
+                Some(match alg {
+                    KeyAlg::MlDsa44 => "ML-DSA-44",
+                    KeyAlg::MlDsa65 => "ML-DSA-65",
+                    KeyAlg::MlDsa87 => "ML-DSA-87",
+                    _ => unreachable!(),
+                })
+            );
+            assert!(public_parts.pub_key.is_some());
+            assert!(public_parts.priv_key.is_none());
             let imported_public_jwk = Box::<AnyKey>::from_jwk(&public_jwk).unwrap();
             assert!(imported_public_jwk
                 .verify_signature(b"AnyKey ML-DSA", signature.as_ref(), None)
                 .unwrap());
+            assert_eq!(
+                key.to_jwk_thumbprint(None).unwrap(),
+                imported_public_jwk.to_jwk_thumbprint(None).unwrap()
+            );
 
             let secret = key.to_secret_bytes().unwrap();
             let imported_secret = Box::<AnyKey>::from_secret_bytes(alg, secret.as_ref()).unwrap();
             assert_eq!(imported_secret.algorithm(), alg);
 
             let jwk = key.to_jwk_secret(None).unwrap();
-            let imported_jwk = Box::<AnyKey>::from_jwk(jwk.as_opt_str().unwrap()).unwrap();
+            let secret_jwk = core::str::from_utf8(jwk.as_ref()).unwrap();
+            let secret_parts = JwkParts::try_from_str(secret_jwk).unwrap();
+            assert_eq!(secret_parts.kty, "AKP");
+            assert!(secret_parts.pub_key.is_some());
+            assert!(secret_parts.priv_key.is_some());
+            let imported_jwk = Box::<AnyKey>::from_jwk(secret_jwk).unwrap();
             assert_eq!(imported_jwk.algorithm(), alg);
+            assert_eq!(
+                imported_jwk.to_secret_bytes().unwrap().as_ref(),
+                secret.as_ref()
+            );
+            let imported_signature = imported_jwk
+                .create_signature(b"AnyKey ML-DSA", None)
+                .unwrap();
+            assert!(imported_public_jwk
+                .verify_signature(b"AnyKey ML-DSA", imported_signature.as_ref(), None)
+                .unwrap());
         }
     }
 

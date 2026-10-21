@@ -15,6 +15,7 @@ The `askar-crypto` crate provides the basic key representations and cryptographi
 | (X)ChaCha20-Poly1305 | `chacha`  | AEAD encryption<br>JWK export                                 | aka C20P, XC20P                 |
 | BLS12-381            | `bls`     | bls-signature<sup>1</sup> key generation<br>JWK import/export | G1 and G2 key types      |
 | Ed25519              | `ed25519` | EdDSA signatures<br>JWK import/export<br>Conversion to X25519 |                                 |
+| ML-DSA               | `mldsa`   | Post-quantum signatures<br>JWK import/export                  | ML-DSA-44, ML-DSA-65, ML-DSA-87 |
 | X25519               | `ed25519` | DH key exchange<br>JWK import/export                          |                                 |
 | K-256                | `k256`    | ECDSA signatures<br>DH key exchange<br>JWK import/export      | aka secp256k1                   |
 | P-256                | `p256`    | ECDSA signatures<br>DH key exchange<br>JWK import/export      | aka nist256p1, secp256r1        |
