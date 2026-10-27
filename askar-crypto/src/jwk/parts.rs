@@ -184,7 +184,9 @@ impl<'de> Visitor<'de> for JwkMapVisitor<'de> {
                     }
                 }
                 "key_ops" => key_ops = Some(access.next_value()?),
-                _ => (),
+                _ => {
+                    access.next_value::<serde::de::IgnoredAny>()?;
+                }
             }
         }
 
@@ -261,6 +263,30 @@ impl Serialize for JwkParts<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_unknown_members() {
+        let jwk_with_unknown_members = r#"{
+            "kty": "AKP",
+            "alg": "ML-DSA-44",
+            "pub": "AQ",
+            "unknown": "x",
+            "unknown_bool": true
+        }"#;
+        let jwk_without_unknown_members = r#"{
+            "kty": "AKP",
+            "alg": "ML-DSA-44",
+            "pub": "AQ"
+        }"#;
+
+        let parts_with_unknown_members = JwkParts::try_from_str(jwk_with_unknown_members).unwrap();
+        let parts_without_unknown_members =
+            JwkParts::try_from_str(jwk_without_unknown_members).unwrap();
+
+        assert_eq!(parts_with_unknown_members, parts_without_unknown_members);
+        assert_eq!(parts_with_unknown_members.kty, "AKP");
+        assert_eq!(parts_with_unknown_members.alg, Some("ML-DSA-44"));
+    }
 
     #[test]
     fn parse_sample_okp() {

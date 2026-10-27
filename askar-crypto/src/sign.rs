@@ -85,11 +85,8 @@ impl FromStr for SignatureType {
             a if a == "es256kph" => Ok(Self::ES256Kph),
             a if a == "es384" => Ok(Self::ES384),
             a if a == "es384ph" => Ok(Self::ES384ph),
-            #[cfg(feature = "mldsa")]
             a if a == "mldsa44" => Ok(Self::MLDSA44),
-            #[cfg(feature = "mldsa")]
             a if a == "mldsa65" => Ok(Self::MLDSA65),
-            #[cfg(feature = "mldsa")]
             a if a == "mldsa87" => Ok(Self::MLDSA87),
             _ => Err(err_msg!(Unsupported, "Unknown signature algorithm")),
         }

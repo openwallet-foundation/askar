@@ -1,8 +1,6 @@
+use alloc::boxed::Box;
 use core::fmt::{self, Debug, Formatter};
 
-use crate::array::typenum::Unsigned;
-
-use alloc::boxed::Box;
 use ml_dsa::{
     signature::{Signer, Verifier},
     EncodedVerifyingKey, ExpandedSigningKey, MlDsa44, MlDsa65, MlDsa87, MlDsaParams, Seed,
@@ -11,11 +9,11 @@ use ml_dsa::{
 use rand::TryCryptoRng;
 use zeroize::Zeroize;
 
-use super::{HasKeyAlg, HasKeyBackend, KeyAlg};
+use super::HasKeyBackend;
 use crate::{
     array::{
         sizes::{U1312, U1952, U2592},
-        typenum::{Sum, U32},
+        typenum::{Sum, Unsigned, U32},
         ArraySize,
     },
     buffer::{ArrayKey, WriteBuffer},
@@ -58,6 +56,9 @@ impl MlDsaVariant for MlDsa87 {
     const SIGNATURE_TYPE: SignatureType = SignatureType::MLDSA87;
 }
 
+/// Length in bytes of an ML-DSA private key seed (FIPS 204).
+const SEED_LENGTH: usize = 32;
+
 /// ML-DSA key pair (FIPS 204).
 ///
 /// The private key is exported as its 32-byte seed only. The expanded signing
@@ -65,7 +66,7 @@ impl MlDsaVariant for MlDsa87 {
 /// subsequent signatures.
 #[derive(Clone)]
 pub struct MlDsaKeyPair<P: MlDsaVariant> {
-    seed: Option<[u8; 32]>,
+    seed: Option<[u8; SEED_LENGTH]>,
     signing: Option<Box<ExpandedSigningKey<P>>>,
     verifying: VerifyingKey<P>,
     public: EncodedVerifyingKey<P>,
@@ -76,13 +77,13 @@ pub type MlDsa65KeyPair = MlDsaKeyPair<MlDsa65>;
 pub type MlDsa87KeyPair = MlDsaKeyPair<MlDsa87>;
 
 impl<P: MlDsaVariant> MlDsaKeyPair<P> {
-    fn ml_seed(seed: &[u8; 32]) -> Seed {
+    fn ml_seed(seed: &[u8; SEED_LENGTH]) -> Seed {
         let mut ml_seed = Seed::default();
         ml_seed.copy_from_slice(seed);
         ml_seed
     }
 
-    fn from_seed_array(mut seed: [u8; 32]) -> Self {
+    fn from_seed_array(mut seed: [u8; SEED_LENGTH]) -> Self {
         let mut ml_seed = Self::ml_seed(&seed);
         let signing = Box::new(ExpandedSigningKey::<P>::from_seed(&ml_seed));
         ml_seed.zeroize();
@@ -175,13 +176,13 @@ impl<P: MlDsaVariant> KeypairMeta for MlDsaKeyPair<P> {
 
 impl<P: MlDsaVariant> KeypairBytes for MlDsaKeyPair<P> {
     fn from_keypair_bytes(keypair: &[u8]) -> Result<Self, Error> {
-        let expected_len = 32 + P::PublicKeySize::USIZE;
+        let expected_len = SEED_LENGTH + P::PublicKeySize::USIZE;
         if keypair.len() != expected_len {
             return Err(err_msg!(InvalidKeyData));
         }
 
-        let key = Self::from_secret_bytes(&keypair[..32])?;
-        if key.public[..] != keypair[32..] {
+        let key = Self::from_secret_bytes(&keypair[..SEED_LENGTH])?;
+        if key.public[..] != keypair[SEED_LENGTH..] {
             return Err(err_msg!(InvalidKeyData, "ML-DSA public key mismatch"));
         }
         Ok(key)
@@ -190,8 +191,8 @@ impl<P: MlDsaVariant> KeypairBytes for MlDsaKeyPair<P> {
     fn with_keypair_bytes<O>(&self, f: impl FnOnce(Option<&[u8]>) -> O) -> O {
         if let Some(seed) = self.seed.as_ref() {
             ArrayKey::<P::KeypairSize>::temp(|keypair| {
-                keypair[..32].copy_from_slice(seed);
-                keypair[32..].copy_from_slice(&self.public);
+                keypair[..SEED_LENGTH].copy_from_slice(seed);
+                keypair[SEED_LENGTH..].copy_from_slice(&self.public);
                 f(Some(keypair.as_ref()))
             })
         } else {
@@ -202,7 +203,7 @@ impl<P: MlDsaVariant> KeypairBytes for MlDsaKeyPair<P> {
 
 impl<P: MlDsaVariant> KeyGen for MlDsaKeyPair<P> {
     fn generate(mut rng: impl KeyMaterial) -> Result<Self, Error> {
-        let mut seed = [0u8; 32];
+        let mut seed = [0u8; SEED_LENGTH];
         rng.read_okm(&mut seed);
         let keypair = Self::from_seed_array(seed);
         seed.zeroize();
@@ -212,7 +213,7 @@ impl<P: MlDsaVariant> KeyGen for MlDsaKeyPair<P> {
 
 impl<P: MlDsaVariant> KeySecretBytes for MlDsaKeyPair<P> {
     fn from_secret_bytes(key: &[u8]) -> Result<Self, Error> {
-        let mut seed: [u8; 32] = key.try_into().map_err(|_| err_msg!(InvalidKeyData))?;
+        let mut seed: [u8; SEED_LENGTH] = key.try_into().map_err(|_| err_msg!(InvalidKeyData))?;
         let keypair = Self::from_seed_array(seed);
         seed.zeroize();
         Ok(keypair)
@@ -242,8 +243,11 @@ impl<P: MlDsaVariant> KeySign for MlDsaKeyPair<P> {
         sig_type: Option<SignatureType>,
         out: &mut dyn WriteBuffer,
     ) -> Result<(), Error> {
-        if sig_type.is_some_and(|sig_type| sig_type != P::SIGNATURE_TYPE) {
-            return Err(err_msg!(Unsupported, "Unsupported signature type"));
+        match sig_type {
+            None => {}
+            Some(t) if t == P::SIGNATURE_TYPE => {}
+            #[allow(unreachable_patterns)]
+            _ => return Err(err_msg!(Unsupported, "Unsupported signature type")),
         }
         let signature = self.sign_inner(message)?;
         out.buffer_write(&signature.encode())
@@ -257,8 +261,11 @@ impl<P: MlDsaVariant> KeySigVerify for MlDsaKeyPair<P> {
         signature: &[u8],
         sig_type: Option<SignatureType>,
     ) -> Result<bool, Error> {
-        if sig_type.is_some_and(|sig_type| sig_type != P::SIGNATURE_TYPE) {
-            return Err(err_msg!(Unsupported, "Unsupported signature type"));
+        match sig_type {
+            None => {}
+            Some(t) if t == P::SIGNATURE_TYPE => {}
+            #[allow(unreachable_patterns)]
+            _ => return Err(err_msg!(Unsupported, "Unsupported signature type")),
         }
         self.verify(message, signature)
     }
@@ -290,7 +297,7 @@ impl<P: MlDsaVariant> FromJwk for MlDsaKeyPair<P> {
         }
 
         if jwk.priv_key.is_some() {
-            let mut seed = [0u8; 32];
+            let mut seed = [0u8; SEED_LENGTH];
             let decoded = jwk.priv_key.decode_base64(&mut seed);
             let decoded_len = match decoded {
                 Ok(decoded_len) => decoded_len,
@@ -345,22 +352,22 @@ mod tests {
     }
 
     fn keypair_round_trip<P: MlDsaVariant>() {
-        let keypair = MlDsaKeyPair::<P>::from_secret_bytes(&[0x42; 32]).unwrap();
-        assert_eq!(keypair.to_secret_bytes().unwrap().as_ref(), &[0x42; 32]);
+        let keypair = MlDsaKeyPair::<P>::from_secret_bytes(&[0x42; SEED_LENGHT]).unwrap();
+        assert_eq!(keypair.to_secret_bytes().unwrap().as_ref(), &[0x42; SEED_LENGHT]);
         let keypair_bytes = keypair.to_keypair_bytes().unwrap();
-        assert_eq!(keypair_bytes.len(), 32 + P::PublicKeySize::USIZE);
+        assert_eq!(keypair_bytes.len(), SEED_LENGHT + P::PublicKeySize::USIZE);
         let imported_keypair =
             MlDsaKeyPair::<P>::from_keypair_bytes(keypair_bytes.as_ref()).unwrap();
         assert_eq!(
             imported_keypair.to_secret_bytes().unwrap().as_ref(),
-            &[0x42; 32]
+            &[0x42; SEED_LENGTH]
         );
         assert!(
             MlDsaKeyPair::<P>::from_keypair_bytes(&keypair_bytes[..keypair_bytes.len() - 1])
                 .is_err()
         );
         let mut altered_keypair = keypair_bytes.as_ref().to_vec();
-        altered_keypair[32] ^= 1;
+        altered_keypair[SEED_LENGTH] ^= 1;
         assert!(MlDsaKeyPair::<P>::from_keypair_bytes(&altered_keypair).is_err());
 
         let mut sig = SecretBytes::with_capacity(5000);
@@ -370,32 +377,62 @@ mod tests {
         assert!(keypair
             .verify_signature(b"ML-DSA test message", sig.as_ref(), None)
             .unwrap());
-        assert!(!keypair
-            .verify_signature(b"different message", sig.as_ref(), None)
-            .unwrap());
-        assert_eq!(sig.len(), P::SIGNATURE_TYPE.signature_length());
-
-        let typed_sig = keypair
-            .create_signature(b"ML-DSA typed signature", Some(P::SIGNATURE_TYPE))
-            .unwrap();
-        assert_eq!(typed_sig.len(), P::SIGNATURE_TYPE.signature_length());
         assert!(keypair
             .verify_signature(
-                b"ML-DSA typed signature",
-                typed_sig.as_ref(),
+                b"ML-DSA test message",
+                sig.as_ref(),
                 Some(P::SIGNATURE_TYPE),
             )
             .unwrap());
+        let mut explicit_sig = SecretBytes::with_capacity(5000);
+        keypair
+            .write_signature(
+                b"ML-DSA test message",
+                Some(P::SIGNATURE_TYPE),
+                &mut explicit_sig,
+            )
+            .unwrap();
         assert!(keypair
-            .create_signature(b"wrong type", Some(SignatureType::EdDSA))
+            .verify_signature(
+                b"ML-DSA test message",
+                explicit_sig.as_ref(),
+                Some(P::SIGNATURE_TYPE),
+            )
+            .unwrap());
+        assert!(!keypair
+            .verify_signature(b"different message", sig.as_ref(), None)
+            .unwrap());
+        let mismatched_type = match P::SIGNATURE_TYPE {
+            SignatureType::MLDSA44 => SignatureType::MLDSA65,
+            SignatureType::MLDSA65 => SignatureType::MLDSA87,
+            SignatureType::MLDSA87 => SignatureType::MLDSA44,
+            _ => unreachable!(),
+        };
+        assert!(keypair
+            .verify_signature(b"ML-DSA test message", sig.as_ref(), Some(mismatched_type),)
+            .is_err());
+        assert!(keypair
+            .write_signature(
+                b"ML-DSA test message",
+                Some(mismatched_type),
+                &mut SecretBytes::new_with(0, |_| {}),
+            )
             .is_err());
         assert!(keypair
             .verify_signature(
-                b"ML-DSA typed signature",
-                typed_sig.as_ref(),
-                Some(SignatureType::EdDSA),
+                b"ML-DSA test message",
+                sig.as_ref(),
+                Some(SignatureType::EdDSA)
             )
             .is_err());
+        assert_eq!(
+            sig.len(),
+            match P::JWK_ALG {
+                "ML-DSA-44" => 2420,
+                "ML-DSA-65" => 3309,
+                _ => 4627,
+            }
+        );
 
         let deterministic_first = keypair.sign(b"deterministic test").unwrap();
         let deterministic_second = keypair.sign(b"deterministic test").unwrap();
@@ -431,7 +468,10 @@ mod tests {
         assert!(parsed.pub_key.is_some());
         assert!(parsed.priv_key.is_some());
         let imported = MlDsaKeyPair::<P>::from_jwk_parts(parsed).unwrap();
-        assert_eq!(imported.to_secret_bytes().unwrap().as_ref(), &[0x42; 32]);
+        assert_eq!(
+            imported.to_secret_bytes().unwrap().as_ref(),
+            &[0x42; SEED_LENGTH]
+        );
 
         let public_jwk = keypair.to_jwk_public(None).unwrap();
         let parsed = JwkParts::try_from_str(&public_jwk).unwrap();
