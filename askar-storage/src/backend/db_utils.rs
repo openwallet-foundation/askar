@@ -571,12 +571,24 @@ pub fn expiry_timestamp(expire_ms: i64) -> Result<Expiry, Error> {
         .ok_or_else(|| err_msg!(Unexpected, "Invalid expiry timestamp"))
 }
 
-#[allow(clippy::type_complexity)]
+/// An encoded tag filter for an SQL query
+#[derive(Debug)]
+pub struct TagFilterSql {
+    /// The SQL condition on the items table alias `i`
+    pub condition: String,
+    /// The arguments of the condition
+    pub arguments: Vec<Vec<u8>>,
+    /// The condition has a positive tag match that the planner can start from
+    pub indexed: bool,
+    /// The number of positive tag matches in the condition
+    pub tag_matches: usize,
+}
+
 pub fn encode_tag_filter<Q: QueryPrepare>(
     tag_filter: Option<TagFilter>,
     key: &ProfileKey,
     offset: usize,
-) -> Result<Option<(String, Vec<Vec<u8>>)>, Error> {
+) -> Result<Option<TagFilterSql>, Error> {
     if let Some(tag_filter) = tag_filter {
         let tag_query = tag_query(tag_filter.query)?;
         let mut enc = TagSqlEncoder::new(
@@ -584,8 +596,13 @@ pub fn encode_tag_filter<Q: QueryPrepare>(
             |value| key.encrypt_tag_value(ProfileKey::prepare_input(value.as_bytes())),
         );
         if let Some(filter) = enc.encode_query(&tag_query)? {
-            let filter = replace_arg_placeholders::<Q>(&filter, (offset as i64) + 1);
-            Ok(Some((filter, enc.arguments)))
+            let condition = replace_arg_placeholders::<Q>(&filter.condition, (offset as i64) + 1);
+            Ok(Some(TagFilterSql {
+                condition,
+                arguments: enc.arguments,
+                indexed: filter.item_ids.is_some(),
+                tag_matches: filter.tag_matches,
+            }))
         } else {
             Ok(None)
         }
@@ -620,7 +637,7 @@ pub fn prepare_tags(tags: &[EntryTag]) -> Result<Vec<EntryTag>, Error> {
 pub fn extend_query<'q, Q: QueryPrepare>(
     query: &str,
     args: &mut QueryParams<Q::DB>,
-    tag_filter: Option<(String, Vec<Vec<u8>>)>,
+    tag_filter: Option<TagFilterSql>,
     offset: Option<i64>,
     limit: Option<i64>,
     order_by: Option<OrderBy>,
@@ -631,10 +648,10 @@ where
     Vec<u8>: for<'e> Encode<'e, Q::DB> + Type<Q::DB>,
 {
     let mut query = query.to_string();
-    if let Some((filter_clause, filter_args)) = tag_filter {
-        args.extend(filter_args);
+    if let Some(filter) = tag_filter {
+        args.extend(filter.arguments);
         query.push_str(" AND "); // assumes WHERE already occurs
-        query.push_str(&filter_clause);
+        query.push_str(&filter.condition);
     };
     // Only add ordering, and limit/offset, if the query starts with SELECT
     if query.trim_start().to_uppercase().starts_with("SELECT") {

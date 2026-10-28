@@ -20,7 +20,7 @@ use super::{
         decode_tags, decrypt_scan_batch, encode_profile_key, encode_tag_filter, expiry_timestamp,
         extend_query, prepare_tags, random_profile_name, replace_arg_placeholders, DbSession,
         DbSessionActive, DbSessionRef, DbSessionTxn, EncScanEntry, ExtDatabase, QueryParams,
-        QueryPrepare, PAGE_SIZE,
+        QueryPrepare, TagFilterSql, PAGE_SIZE,
     },
     Backend, BackendSession,
 };
@@ -374,6 +374,7 @@ impl BackendSession for DbSession<Postgres> {
             })
             .await?;
             params.push(enc_category);
+            let persistent = cache_statement(tag_filter.as_ref());
             let query = extend_query::<PostgresBackend>(
                 COUNT_QUERY,
                 &mut params,
@@ -385,6 +386,7 @@ impl BackendSession for DbSession<Postgres> {
             )?;
             let mut active = acquire_session(&mut *self).await?;
             let count = sqlx::query_scalar_with(sqlx::AssertSqlSafe(query), params)
+                .persistent(persistent)
                 .fetch_one(active.connection_mut())
                 .await
                 .map_err(err_map!(Backend, "Error performing count query"))?;
@@ -515,6 +517,7 @@ impl BackendSession for DbSession<Postgres> {
             })
             .await?;
             params.push(enc_category);
+            let persistent = cache_statement(tag_filter.as_ref());
             let query = extend_query::<PostgresBackend>(
                 DELETE_ALL_QUERY,
                 &mut params,
@@ -527,6 +530,7 @@ impl BackendSession for DbSession<Postgres> {
 
             let mut active = acquire_session(&mut *self).await?;
             let removed = sqlx::query_with(sqlx::AssertSqlSafe(query), params)
+                .persistent(persistent)
                 .execute(active.connection_mut())
                 .await?
                 .rows_affected();
@@ -783,6 +787,13 @@ async fn perform_remove(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Decide if a query with the tag filter is cached as a prepared statement.
+///
+/// See `perform_scan` for the reason.
+fn cache_statement(tag_filter: Option<&TagFilterSql>) -> bool {
+    tag_filter.is_none_or(|filter| filter.tag_matches <= 1)
+}
+
 fn perform_scan(
     mut active: DbSessionRef<'_, Postgres>,
     profile_id: ProfileId,
@@ -814,6 +825,12 @@ fn perform_scan(
             }
         }).await?;
         params.push(enc_category);
+        // A query with more than one tag match is not cached as a prepared
+        // statement. After five executions of a cached statement, PostgreSQL can
+        // switch to a generic plan without the parameter values, and then it cannot
+        // tell which tag subquery is selective. An unnamed statement is planned
+        // with the values.
+        let persistent = cache_statement(tag_filter.as_ref());
         let mut query = extend_query::<PostgresBackend>(SCAN_QUERY, &mut params, tag_filter, offset, limit, order_by, descending)?;
         if for_update {
             query.push_str(" FOR NO KEY UPDATE");
@@ -821,7 +838,7 @@ fn perform_scan(
         let mut batch = Vec::with_capacity(PAGE_SIZE);
 
         let mut acquired = acquire_session(&mut active).await?;
-        let mut rows = sqlx::query_with(sqlx::AssertSqlSafe(query), params).fetch(acquired.connection_mut());
+        let mut rows = sqlx::query_with(sqlx::AssertSqlSafe(query), params).persistent(persistent).fetch(acquired.connection_mut());
         while let Some(row) = rows.try_next().await? {
             let tags = row.try_get::<Option<String>, _>(5)?.map(String::into_bytes).unwrap_or_default();
             let kind: i16 = row.try_get(1)?;
