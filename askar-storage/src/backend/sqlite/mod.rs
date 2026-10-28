@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::{self, Debug, Formatter};
 use std::sync::Arc;
@@ -20,7 +21,7 @@ use super::{
         decode_tags, decrypt_scan_batch, encode_profile_key, encode_tag_filter, expiry_timestamp,
         extend_query, prepare_tags, random_profile_name, Connection, DbSession, DbSessionActive,
         DbSessionRef, DbSessionTxn, EncScanEntry, ExtDatabase, QueryParams, QueryPrepare,
-        PAGE_SIZE,
+        TagFilterSql, PAGE_SIZE,
     },
     Backend, BackendSession,
 };
@@ -38,7 +39,7 @@ pub use provision::SqliteStoreOptions;
 const CONFIG_FETCH_QUERY: &str = "SELECT value FROM config WHERE name = ?1";
 const CONFIG_UPDATE_QUERY: &str = "INSERT OR REPLACE INTO config (name, value) VALUES (?1, ?2)";
 const COUNT_QUERY: &str = "SELECT COUNT(*) FROM items i
-    WHERE profile_id = ?1
+    WHERE i.profile_id = ?1
     AND (kind = ?2 OR ?2 IS NULL)
     AND (category = ?3 OR ?3 IS NULL)
     AND (expiry IS NULL OR DATETIME(expiry) > DATETIME('now'))";
@@ -70,6 +71,21 @@ const TAG_INSERT_QUERY: &str = "INSERT INTO items_tags
     (item_id, name, value, plaintext) VALUES (?1, ?2, ?3, ?4)";
 const TAG_DELETE_QUERY: &str = "DELETE FROM items_tags
     WHERE item_id=?1";
+
+/// Prepare an item query for a tag filter.
+///
+/// Without table statistics, SQLite expects few items for each profile, and scans
+/// all the items of the profile. When the tag filter has a positive tag match, the
+/// unary `+` stops the use of the profile index, so that SQLite finds the items
+/// from the tag indexes.
+fn with_tag_filter(query: &'static str, tag_filter: Option<&TagFilterSql>) -> Cow<'static, str> {
+    debug_assert!(query.contains("WHERE i.profile_id"));
+    if tag_filter.is_some_and(|filter| filter.indexed) {
+        Cow::Owned(query.replacen("WHERE i.profile_id", "WHERE +i.profile_id", 1))
+    } else {
+        Cow::Borrowed(query)
+    }
+}
 
 /// A Sqlite database store
 pub struct SqliteBackend {
@@ -359,7 +375,7 @@ impl BackendSession for DbSession<Sqlite> {
             .await?;
             params.push(enc_category);
             let query = extend_query::<SqliteBackend>(
-                COUNT_QUERY,
+                &with_tag_filter(COUNT_QUERY, tag_filter.as_ref()),
                 &mut params,
                 tag_filter,
                 None,
@@ -489,7 +505,7 @@ impl BackendSession for DbSession<Sqlite> {
             .await?;
             params.push(enc_category);
             let query = extend_query::<SqliteBackend>(
-                DELETE_ALL_QUERY,
+                &with_tag_filter(DELETE_ALL_QUERY, tag_filter.as_ref()),
                 &mut params,
                 tag_filter,
                 None,
@@ -763,7 +779,7 @@ fn perform_scan(
             }
         }).await?;
         params.push(enc_category);
-        let query = extend_query::<SqliteBackend>(SCAN_QUERY, &mut params, tag_filter, offset, limit, order_by, descending)?;
+        let query = extend_query::<SqliteBackend>(&with_tag_filter(SCAN_QUERY, tag_filter.as_ref()), &mut params, tag_filter, offset, limit, order_by, descending)?;
 
         let mut batch = Vec::with_capacity(PAGE_SIZE);
 
