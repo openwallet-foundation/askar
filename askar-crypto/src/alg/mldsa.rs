@@ -9,7 +9,7 @@ use ml_dsa::{
 use rand::TryCryptoRng;
 use zeroize::Zeroize;
 
-use super::HasKeyBackend;
+use super::{HasKeyAlg, HasKeyBackend, KeyAlg};
 use crate::{
     array::{
         sizes::{U1312, U1952, U2592},
