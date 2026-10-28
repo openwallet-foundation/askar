@@ -786,7 +786,6 @@ async fn perform_remove(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 /// Decide if a query with the tag filter is cached as a prepared statement.
 ///
 /// See `perform_scan` for the reason.
@@ -794,6 +793,7 @@ fn cache_statement(tag_filter: Option<&TagFilterSql>) -> bool {
     tag_filter.is_none_or(|filter| filter.tag_matches <= 1)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn perform_scan(
     mut active: DbSessionRef<'_, Postgres>,
     profile_id: ProfileId,
@@ -827,9 +827,14 @@ fn perform_scan(
         params.push(enc_category);
         // A query with more than one tag match is not cached as a prepared
         // statement. After five executions of a cached statement, PostgreSQL can
-        // switch to a generic plan without the parameter values, and then it cannot
-        // tell which tag subquery is selective. An unnamed statement is planned
-        // with the values.
+        // switch to a generic plan without the parameter values. It then estimates
+        // one row for each tag subquery and starts from the first one, which can
+        // match most of the items. The result depends on the order of the tags:
+        // `did` + `state` is fast, but `state` + `theirDid` reads all the items.
+        // Filters with the same structure give the same SQL text and share one
+        // cached statement, so one filter can switch the statement to the generic
+        // plan, and a different filter then gets that plan on its first run.
+        // An unnamed statement is planned with the values on each run.
         let persistent = cache_statement(tag_filter.as_ref());
         let mut query = extend_query::<PostgresBackend>(SCAN_QUERY, &mut params, tag_filter, offset, limit, order_by, descending)?;
         if for_update {

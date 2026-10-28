@@ -519,6 +519,65 @@ pub async fn db_scan(db: AnyBackend) {
     assert_eq!(rows, None);
 }
 
+pub async fn db_scan_or_many_terms(db: AnyBackend) {
+    // An OR filter with more terms than SQLite accepts in one compound SELECT
+    let terms = 1200;
+    let category = "category".to_string();
+    let test_rows = vec![Entry::new(
+        EntryKind::Item,
+        &category,
+        "name",
+        "value",
+        vec![EntryTag::Encrypted("t1".to_string(), "v1".to_string())],
+    )];
+
+    let mut conn = db.session(None, false).expect(ERR_SESSION);
+    for upd in test_rows.iter() {
+        conn.update(
+            EntryKind::Item,
+            EntryOperation::Insert,
+            &upd.category,
+            &upd.name,
+            Some(&upd.value),
+            Some(upd.tags.as_slice()),
+            None,
+        )
+        .await
+        .expect(ERR_INSERT);
+    }
+    drop(conn);
+
+    let mut any = (0..terms)
+        .map(|idx| TagFilter::is_eq("t1", format!("other{}", idx)))
+        .collect::<Vec<_>>();
+    any.push(TagFilter::is_eq("t1", "v1"));
+    let tag_filter = Some(TagFilter::any_of(any));
+    let mut scan = db
+        .scan(
+            None,
+            Some(EntryKind::Item),
+            Some(category.clone()),
+            tag_filter.clone(),
+            None,
+            None,
+            None,
+            false,
+        )
+        .await
+        .expect(ERR_SCAN);
+    let rows = scan.fetch_next().await.expect(ERR_SCAN_NEXT);
+    assert_eq!(rows, Some(test_rows));
+    let rows = scan.fetch_next().await.expect(ERR_SCAN_NEXT);
+    assert_eq!(rows, None);
+
+    let mut conn = db.session(None, false).expect(ERR_SESSION);
+    let count = conn
+        .count(Some(EntryKind::Item), Some(&category), tag_filter)
+        .await
+        .expect(ERR_COUNT);
+    assert_eq!(count, 1);
+}
+
 pub async fn db_remove_all(db: AnyBackend) {
     let test_rows = [
         Entry::new(

@@ -5,11 +5,11 @@ use itertools::Itertools;
 use super::tags::{CompareOp, ConjunctionOp, TagName, TagQueryEncoder};
 use crate::error::Error;
 
-/// The maximum number of terms in one `UNION ALL` subquery.
+/// The maximum number of terms in one compound `UNION ALL` select.
 ///
 /// SQLite rejects a compound SELECT with more than 500 terms
-/// (`SQLITE_MAX_COMPOUND_SELECT`). An OR clause with more terms is encoded
-/// as a condition instead.
+/// (`SQLITE_MAX_COMPOUND_SELECT`). The limit applies to each compound select,
+/// so a larger union is split into nested groups.
 const MAX_UNION_TERMS: usize = 400;
 
 /// An encoded tag filter clause
@@ -17,11 +17,10 @@ const MAX_UNION_TERMS: usize = 400;
 pub struct TagSqlClause {
     /// The condition on the item `i`
     pub condition: String,
-    /// A subquery that selects the IDs of the matching items, if the clause
-    /// has a positive tag match to start from
-    pub item_ids: Option<String>,
-    /// The number of `UNION ALL` terms in `item_ids`
-    pub union_terms: usize,
+    /// The subqueries that select the IDs of the matching items, if the clause
+    /// has a positive tag match to start from. The union of the subqueries
+    /// selects the items of the clause.
+    pub item_ids: Option<Vec<String>>,
     /// The number of positive tag matches in the clause
     pub tag_matches: usize,
 }
@@ -32,18 +31,32 @@ impl TagSqlClause {
             Self {
                 condition: format!("i.id NOT IN ({})", subquery),
                 item_ids: None,
-                union_terms: 0,
                 tag_matches: 0,
             }
         } else {
             Self {
                 condition: format!("i.id IN ({})", subquery),
-                item_ids: Some(subquery),
-                union_terms: 1,
+                item_ids: Some(vec![subquery]),
                 tag_matches: 1,
             }
         }
     }
+}
+
+/// Join the subqueries with `UNION ALL`.
+///
+/// Each compound select gets at most `MAX_UNION_TERMS` terms. A larger union
+/// is split into groups, and each group is a subquery in the outer union.
+fn union_sql(terms: &[String]) -> String {
+    if terms.len() <= MAX_UNION_TERMS {
+        return Itertools::intersperse(terms.iter().map(String::as_str), " UNION ALL ")
+            .collect::<String>();
+    }
+    let groups = terms
+        .chunks(MAX_UNION_TERMS)
+        .map(|group| format!("SELECT * FROM ({}) AS u", union_sql(group)))
+        .collect::<Vec<_>>();
+    union_sql(&groups)
 }
 
 pub struct TagSqlEncoder<'e, EN, EV> {
@@ -173,7 +186,6 @@ where
                 return Ok(Some(TagSqlClause {
                     condition: "0".to_string(),
                     item_ids: None,
-                    union_terms: 0,
                     tag_matches: 0,
                 }));
             } else {
@@ -190,20 +202,15 @@ where
         // the union of the matching item IDs in one subquery, which the planner can
         // start from.
         if op == ConjunctionOp::Or && clauses.iter().all(|c| c.item_ids.is_some()) {
-            let union_terms = clauses.iter().map(|c| c.union_terms).sum::<usize>();
-            if union_terms <= MAX_UNION_TERMS {
-                let item_ids = Itertools::intersperse(
-                    clauses.iter().filter_map(|c| c.item_ids.as_deref()),
-                    " UNION ALL ",
-                )
-                .collect::<String>();
-                return Ok(Some(TagSqlClause {
-                    condition: format!("i.id IN ({})", item_ids),
-                    item_ids: Some(item_ids),
-                    union_terms,
-                    tag_matches,
-                }));
-            }
+            let item_ids = clauses
+                .into_iter()
+                .flat_map(|c| c.item_ids.unwrap_or_default())
+                .collect::<Vec<_>>();
+            return Ok(Some(TagSqlClause {
+                condition: format!("i.id IN ({})", union_sql(&item_ids)),
+                item_ids: Some(item_ids),
+                tag_matches,
+            }));
         }
 
         let condition = format!(
@@ -218,12 +225,10 @@ where
         // The alias `i` in the subquery hides the outer `i`, so that the conditions
         // apply to the items of the subquery.
         let item_ids = (op == ConjunctionOp::And && clauses.iter().any(|c| c.item_ids.is_some()))
-            .then(|| format!("SELECT i.id FROM items i WHERE {}", condition));
-        let union_terms = usize::from(item_ids.is_some());
+            .then(|| vec![format!("SELECT i.id FROM items i WHERE {}", condition)]);
         Ok(Some(TagSqlClause {
             condition,
             item_ids,
-            union_terms,
             tag_matches,
         }))
     }
@@ -263,20 +268,21 @@ mod tests {
 
     #[test]
     fn tag_query_encode_or_above_union_limit() {
-        // An OR with more terms than SQLite accepts in a compound SELECT is
-        // encoded as a condition. The nested OR below the limit keeps its union.
+        // An OR with more terms than one compound SELECT accepts is split into
+        // nested groups. The terms of a nested OR are part of the same union.
         let many = (0..MAX_UNION_TERMS)
             .map(|idx| plain_eq("a", &idx.to_string()))
             .collect::<Vec<_>>();
         let query = TagQuery::Or(vec![TagQuery::Or(many), plain_eq("b", "2")]);
         let encoded = encode(&query);
-        assert!(encoded.starts_with("(i.id IN (SELECT item_id FROM items_tags WHERE name = $1 AND value = $2 AND plaintext = 1 UNION ALL SELECT item_id"));
+        assert!(encoded.starts_with("i.id IN (SELECT * FROM (SELECT item_id FROM items_tags WHERE name = $1 AND value = $2 AND plaintext = 1 UNION ALL SELECT item_id"));
         assert!(encoded.ends_with(&format!(
-            " AND plaintext = 1) OR i.id IN (SELECT item_id FROM items_tags WHERE name = ${} AND value = ${} AND plaintext = 1))",
+            " AND plaintext = 1) AS u UNION ALL SELECT * FROM (SELECT item_id FROM items_tags WHERE name = ${} AND value = ${} AND plaintext = 1) AS u)",
             MAX_UNION_TERMS * 2 + 1,
             MAX_UNION_TERMS * 2 + 2
         )));
-        assert_eq!(encoded.matches(" UNION ALL ").count(), MAX_UNION_TERMS - 1);
+        assert_eq!(encoded.matches(" UNION ALL ").count(), MAX_UNION_TERMS);
+        assert_eq!(encoded.matches("SELECT * FROM (").count(), 2);
     }
 
     #[test]
