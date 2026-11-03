@@ -3,7 +3,7 @@ name: "Aries-Askar"
 env:
   RUST_VERSION: "1.94.0"
   RUST_NIGHTLY_VERSION: "nightly"
-  TEST_FEATURES: "default"
+  TEST_FEATURES: "default,mldsa"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -62,7 +62,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Cargo check
-        run: cargo check --workspace
+        run: cargo check --workspace --features mldsa
 
   tests:
     name: Run tests
@@ -98,7 +98,7 @@ jobs:
           pg_isready
           sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres'"
           echo "POSTGRES_URL=postgres://postgres:postgres@localhost:5432/test-db" >> $GITHUB_ENV
-          echo "TEST_FEATURES=pg_test" >> $GITHUB_ENV
+          echo "TEST_FEATURES=pg_test,mldsa" >> $GITHUB_ENV
 
       - name: Run tests
         run: cargo test --workspace --features "${{ env.TEST_FEATURES }}" -- --nocapture --test-threads 1 --skip contention
@@ -165,11 +165,11 @@ jobs:
               "${{ matrix.manylinux_image }}" bash -c '
                 curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain ${{ env.RUST_VERSION }}
                 export PATH="$HOME/.cargo/bin:$PATH"
-                cargo build --lib --release --target ${{ matrix.target }}'
+                cargo build --lib --release --features mldsa --target ${{ matrix.target }}'
           elif [ "${{ matrix.architecture }}" == "darwin-universal" ]; then
             ./build-universal.sh
           else
-            cargo build --lib --release --target ${{ matrix.target }}
+            cargo build --lib --release --features mldsa --target ${{ matrix.target }}
           fi
 
       - name: Upload artifacts
@@ -352,7 +352,7 @@ jobs:
 
       - name: Build
         run: |
-          cargo build --lib --release --target ${{matrix.target}}
+          cargo build --lib --release --features mldsa --target ${{matrix.target}}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
@@ -400,7 +400,7 @@ jobs:
             export CFLAGS="-D__ARM_ARCH=8"
           fi
 
-          cross build --lib --release --target ${{matrix.target}}
+          cross build --lib --release --features mldsa --target ${{matrix.target}}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
