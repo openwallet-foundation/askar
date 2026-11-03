@@ -353,7 +353,10 @@ mod tests {
 
     fn keypair_round_trip<P: MlDsaVariant>() {
         let keypair = MlDsaKeyPair::<P>::from_secret_bytes(&[0x42; SEED_LENGTH]).unwrap();
-        assert_eq!(keypair.to_secret_bytes().unwrap().as_ref(), &[0x42; SEED_LENGTH]);
+        assert_eq!(
+            keypair.to_secret_bytes().unwrap().as_ref(),
+            &[0x42; SEED_LENGTH]
+        );
         let keypair_bytes = keypair.to_keypair_bytes().unwrap();
         assert_eq!(keypair_bytes.len(), SEED_LENGTH + P::PublicKeySize::USIZE);
         let imported_keypair =
