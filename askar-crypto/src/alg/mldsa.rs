@@ -19,7 +19,7 @@ use crate::{
     buffer::{ArrayKey, WriteBuffer},
     error::Error,
     jwk::{FromJwk, JwkEncoder, JwkParts, ToJwk},
-    random::KeyMaterial,
+    random::{default_rng, KeyMaterial},
     repr::{KeyGen, KeyMeta, KeyPublicBytes, KeySecretBytes, KeypairBytes, KeypairMeta},
     sign::{KeySigVerify, KeySign, SignatureType},
 };
@@ -249,7 +249,7 @@ impl<P: MlDsaVariant> KeySign for MlDsaKeyPair<P> {
             #[allow(unreachable_patterns)]
             _ => return Err(err_msg!(Unsupported, "Unsupported signature type")),
         }
-        let signature = self.sign_inner(message)?;
+        let signature = self.sign_hedged(message, &mut default_rng())?;
         out.buffer_write(&signature.encode())
     }
 }
