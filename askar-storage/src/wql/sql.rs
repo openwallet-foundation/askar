@@ -18,15 +18,19 @@ pub struct TagSqlClause {
     /// The condition on the item `i`
     pub condition: String,
     /// The subqueries that select the IDs of the matching items, if the clause
-    /// has a positive tag match to start from. The union of the subqueries
-    /// selects the items of the clause.
+    /// has a positive encrypted tag match to start from. The union of the
+    /// subqueries selects the items of the clause.
+    ///
+    /// A plaintext tag match is not a start point. Its value is the same for
+    /// each profile, so the tag index returns the rows of all the profiles,
+    /// and a scan of the items of the profile can be cheaper.
     pub item_ids: Option<Vec<String>>,
     /// The number of positive tag matches in the clause
     pub tag_matches: usize,
 }
 
 impl TagSqlClause {
-    fn tag_match(subquery: String, negate: bool) -> Self {
+    fn tag_match(subquery: String, is_plaintext: bool, negate: bool) -> Self {
         if negate {
             Self {
                 condition: format!("i.id NOT IN ({})", subquery),
@@ -36,7 +40,7 @@ impl TagSqlClause {
         } else {
             Self {
                 condition: format!("i.id IN ({})", subquery),
-                item_ids: Some(vec![subquery]),
+                item_ids: (!is_plaintext).then(|| vec![subquery]),
                 tag_matches: 1,
             }
         }
@@ -139,7 +143,7 @@ where
             op_prefix.as_str(),
             i32::from(is_plaintext)
         );
-        Ok(Some(TagSqlClause::tag_match(query, negate)))
+        Ok(Some(TagSqlClause::tag_match(query, is_plaintext, negate)))
     }
 
     fn encode_in_clause(
@@ -158,7 +162,7 @@ where
         );
         self.arguments.push(enc_name);
         self.arguments.extend(enc_values);
-        Ok(Some(TagSqlClause::tag_match(query, negate)))
+        Ok(Some(TagSqlClause::tag_match(query, is_plaintext, negate)))
     }
 
     fn encode_exist_clause(
@@ -172,7 +176,7 @@ where
             i32::from(is_plaintext)
         );
         self.arguments.push(enc_name);
-        Ok(Some(TagSqlClause::tag_match(query, negate)))
+        Ok(Some(TagSqlClause::tag_match(query, is_plaintext, negate)))
     }
 
     fn encode_conj_clause(
@@ -251,6 +255,14 @@ mod tests {
         TagQuery::Eq(TagName::Plaintext(name.to_string()), value.to_string())
     }
 
+    fn enc_eq(name: &str, value: &str) -> TagQuery {
+        TagQuery::Eq(TagName::Encrypted(name.to_string()), value.to_string())
+    }
+
+    const ENC_1: &str = "SELECT item_id FROM items_tags WHERE name = $1 AND value = $2 AND SUBSTR(value, 1, 12) = $3 AND plaintext = 0";
+    const ENC_2: &str = "SELECT item_id FROM items_tags WHERE name = $4 AND value = $5 AND SUBSTR(value, 1, 12) = $6 AND plaintext = 0";
+    const ENC_3: &str = "SELECT item_id FROM items_tags WHERE name = $7 AND value = $8 AND SUBSTR(value, 1, 12) = $9 AND plaintext = 0";
+
     #[test]
     fn tag_query_encode_and() {
         let query = TagQuery::And(vec![plain_eq("a", "1"), plain_eq("b", "2")]);
@@ -260,10 +272,30 @@ mod tests {
     #[test]
     fn tag_query_encode_or_nested() {
         let query = TagQuery::Or(vec![
-            plain_eq("a", "1"),
-            TagQuery::Or(vec![plain_eq("b", "2"), plain_eq("c", "3")]),
+            enc_eq("a", "noncenonce12v1"),
+            TagQuery::Or(vec![
+                enc_eq("b", "noncenonce12v2"),
+                enc_eq("c", "noncenonce12v3"),
+            ]),
         ]);
-        assert_eq!(encode(&query), "i.id IN (SELECT item_id FROM items_tags WHERE name = $1 AND value = $2 AND plaintext = 1 UNION ALL SELECT item_id FROM items_tags WHERE name = $3 AND value = $4 AND plaintext = 1 UNION ALL SELECT item_id FROM items_tags WHERE name = $5 AND value = $6 AND plaintext = 1)");
+        assert_eq!(
+            encode(&query),
+            format!("i.id IN ({ENC_1} UNION ALL {ENC_2} UNION ALL {ENC_3})")
+        );
+    }
+
+    #[test]
+    fn tag_query_encode_or_plaintext() {
+        // A plaintext tag has the same value in each profile, so its index is not
+        // a start point. The OR is kept as a condition on the items.
+        let query = TagQuery::Or(vec![plain_eq("a", "1"), plain_eq("b", "2")]);
+        assert_eq!(encode(&query), "(i.id IN (SELECT item_id FROM items_tags WHERE name = $1 AND value = $2 AND plaintext = 1) OR i.id IN (SELECT item_id FROM items_tags WHERE name = $3 AND value = $4 AND plaintext = 1))");
+        // The same applies to an OR with one plaintext branch
+        let query = TagQuery::Or(vec![enc_eq("a", "noncenonce12v1"), plain_eq("b", "2")]);
+        assert_eq!(
+            encode(&query),
+            format!("(i.id IN ({ENC_1}) OR i.id IN (SELECT item_id FROM items_tags WHERE name = $4 AND value = $5 AND plaintext = 1))")
+        );
     }
 
     #[test]
@@ -271,15 +303,18 @@ mod tests {
         // An OR with more terms than one compound SELECT accepts is split into
         // nested groups. The terms of a nested OR are part of the same union.
         let many = (0..MAX_UNION_TERMS)
-            .map(|idx| plain_eq("a", &idx.to_string()))
+            .map(|idx| enc_eq("a", &format!("noncenonce12{}", idx)))
             .collect::<Vec<_>>();
-        let query = TagQuery::Or(vec![TagQuery::Or(many), plain_eq("b", "2")]);
+        let query = TagQuery::Or(vec![TagQuery::Or(many), enc_eq("b", "noncenonce12v2")]);
         let encoded = encode(&query);
-        assert!(encoded.starts_with("i.id IN (SELECT * FROM (SELECT item_id FROM items_tags WHERE name = $1 AND value = $2 AND plaintext = 1 UNION ALL SELECT item_id"));
+        assert!(encoded.starts_with(&format!(
+            "i.id IN (SELECT * FROM ({ENC_1} UNION ALL SELECT item_id"
+        )));
         assert!(encoded.ends_with(&format!(
-            " AND plaintext = 1) AS u UNION ALL SELECT * FROM (SELECT item_id FROM items_tags WHERE name = ${} AND value = ${} AND plaintext = 1) AS u)",
-            MAX_UNION_TERMS * 2 + 1,
-            MAX_UNION_TERMS * 2 + 2
+            " AND plaintext = 0) AS u UNION ALL SELECT * FROM (SELECT item_id FROM items_tags WHERE name = ${} AND value = ${} AND SUBSTR(value, 1, 12) = ${} AND plaintext = 0) AS u)",
+            MAX_UNION_TERMS * 3 + 1,
+            MAX_UNION_TERMS * 3 + 2,
+            MAX_UNION_TERMS * 3 + 3
         )));
         assert_eq!(encoded.matches(" UNION ALL ").count(), MAX_UNION_TERMS);
         assert_eq!(encoded.matches("SELECT * FROM (").count(), 2);
