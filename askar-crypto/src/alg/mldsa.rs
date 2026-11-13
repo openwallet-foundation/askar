@@ -9,7 +9,7 @@ use ml_dsa::{
 use rand::TryCryptoRng;
 use zeroize::Zeroize;
 
-use super::HasKeyBackend;
+use super::{HasKeyAlg, HasKeyBackend, KeyAlg};
 use crate::{
     array::{
         sizes::{U1312, U1952, U2592},
@@ -19,7 +19,7 @@ use crate::{
     buffer::{ArrayKey, WriteBuffer},
     error::Error,
     jwk::{FromJwk, JwkEncoder, JwkParts, ToJwk},
-    random::KeyMaterial,
+    random::{default_rng, KeyMaterial},
     repr::{KeyGen, KeyMeta, KeyPublicBytes, KeySecretBytes, KeypairBytes, KeypairMeta},
     sign::{KeySigVerify, KeySign, SignatureType},
 };
@@ -28,6 +28,7 @@ pub trait MlDsaVariant: MlDsaParams {
     type PublicKeySize: ArraySize;
     type KeypairSize: ArraySize;
     const JWK_ALG: &'static str;
+    const KEY_ALG: KeyAlg;
     const SIGNATURE_TYPE: SignatureType;
 }
 
@@ -35,6 +36,7 @@ impl MlDsaVariant for MlDsa44 {
     type PublicKeySize = U1312;
     type KeypairSize = Sum<U32, U1312>;
     const JWK_ALG: &'static str = "ML-DSA-44";
+    const KEY_ALG: KeyAlg = KeyAlg::MlDsa44;
     const SIGNATURE_TYPE: SignatureType = SignatureType::MLDSA44;
 }
 
@@ -42,6 +44,7 @@ impl MlDsaVariant for MlDsa65 {
     type PublicKeySize = U1952;
     type KeypairSize = Sum<U32, U1952>;
     const JWK_ALG: &'static str = "ML-DSA-65";
+    const KEY_ALG: KeyAlg = KeyAlg::MlDsa65;
     const SIGNATURE_TYPE: SignatureType = SignatureType::MLDSA65;
 }
 
@@ -49,6 +52,7 @@ impl MlDsaVariant for MlDsa87 {
     type PublicKeySize = U2592;
     type KeypairSize = Sum<U32, U2592>;
     const JWK_ALG: &'static str = "ML-DSA-87";
+    const KEY_ALG: KeyAlg = KeyAlg::MlDsa87;
     const SIGNATURE_TYPE: SignatureType = SignatureType::MLDSA87;
 }
 
@@ -155,6 +159,12 @@ impl<P: MlDsaVariant> Debug for MlDsaKeyPair<P> {
 
 impl<P: MlDsaVariant> HasKeyBackend for MlDsaKeyPair<P> {}
 
+impl<P: MlDsaVariant> HasKeyAlg for MlDsaKeyPair<P> {
+    fn algorithm(&self) -> KeyAlg {
+        P::KEY_ALG
+    }
+}
+
 impl<P: MlDsaVariant> KeyMeta for MlDsaKeyPair<P> {
     type KeySize = U32;
 }
@@ -239,7 +249,7 @@ impl<P: MlDsaVariant> KeySign for MlDsaKeyPair<P> {
             #[allow(unreachable_patterns)]
             _ => return Err(err_msg!(Unsupported, "Unsupported signature type")),
         }
-        let signature = self.sign_inner(message)?;
+        let signature = self.sign_hedged(message, &mut default_rng())?;
         out.buffer_write(&signature.encode())
     }
 }
@@ -320,12 +330,26 @@ impl<P: MlDsaVariant> Drop for MlDsaKeyPair<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::str::FromStr;
+
     use crate::{
         array::typenum::Unsigned,
         buffer::SecretBytes,
         random::RandomDet,
         repr::{KeyPublicBytes, KeySecretBytes, ToPublicBytes, ToSecretBytes},
     };
+
+    #[test]
+    fn mldsa_signature_types() {
+        for (name, sig_type, len) in [
+            ("ML-DSA-44", SignatureType::MLDSA44, 2420),
+            ("ML-DSA-65", SignatureType::MLDSA65, 3309),
+            ("ML-DSA-87", SignatureType::MLDSA87, 4627),
+        ] {
+            assert_eq!(SignatureType::from_str(name).unwrap(), sig_type);
+            assert_eq!(sig_type.signature_length(), len);
+        }
+    }
 
     fn keypair_round_trip<P: MlDsaVariant>() {
         let keypair = MlDsaKeyPair::<P>::from_secret_bytes(&[0x42; SEED_LENGTH]).unwrap();

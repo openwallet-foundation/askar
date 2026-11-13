@@ -36,6 +36,7 @@ migration = ["askar-storage/migration"]
 pg_test = ["askar-storage/pg_test"]
 postgres = ["askar-storage/postgres"]
 sqlite = ["askar-storage/sqlite"]
+mldsa = ["askar-crypto/mldsa"]
 
 [dependencies]
 async-lock = "3.4"

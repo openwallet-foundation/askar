@@ -49,7 +49,7 @@ fi
 TARGET_LIBS=
 for target in $MACOS_UNIVERSAL_TARGETS; do
 	echo "Building $PROJECT for toolchain '$BUILD_TOOLCHAIN', target '$target'.."
-	$RUSTUP run $BUILD_TOOLCHAIN cargo build --lib --release --target $target
+	$RUSTUP run $BUILD_TOOLCHAIN cargo build --lib --release --features mldsa --target $target
 	TARGET_LIBS="./target/$target/release/libaries_askar.dylib $TARGET_LIBS"
 done
 
