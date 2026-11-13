@@ -1,0 +1,26 @@
+{
+  "name": "Askar storage and explorer",
+  "dockerComposeFile": ["compose.yaml", "compose.devcontainer.yaml"],
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "remoteUser": "vscode",
+  "postCreateCommand": "cargo build -p askar-explorer",
+  "customizations": {
+    "vscode": {
+      "extensions": ["rust-lang.rust-analyzer", "ms-python.python"],
+      "mcp": {
+        "servers": {
+          "askar-explorer": {
+            "type": "stdio",
+            "command": "/tmp/askar-target/debug/askar-explorer",
+            "args": ["mcp"],
+            "env": {
+              "ASKAR_EXPLORER_AGENT_URL": "http://explorer:7071",
+              "ASKAR_EXPLORER_TOKEN_FILE": "/run/explorer/agent.token"
+            }
+          }
+        }
+      }
+    }
+  }
+}

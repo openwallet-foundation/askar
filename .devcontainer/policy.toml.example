@@ -1,0 +1,7 @@
+# Only these tag values and JSON paths may be shown in the agent's redacted view.
+show_tags = ["state"]
+show_paths = ["state", "role"]
+
+# Optional additions for one category:
+# [category.connections]
+# show_paths = ["created_at"]

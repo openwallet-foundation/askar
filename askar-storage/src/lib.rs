@@ -38,6 +38,9 @@ pub use self::backend::sqlite;
 
 pub mod entry;
 
+#[cfg(feature = "inspect")]
+pub mod inspect;
+
 #[doc(hidden)]
 pub mod future;
 

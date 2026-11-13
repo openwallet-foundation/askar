@@ -1,5 +1,5 @@
 [workspace]
-members = ["askar-crypto", "askar-storage"]
+members = ["askar-crypto", "askar-storage", "tools/askar-explorer"]
 resolver = "2"
 
 [package]

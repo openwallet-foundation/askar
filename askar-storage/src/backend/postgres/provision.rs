@@ -255,7 +255,7 @@ impl PostgresStoreOptions {
             let count = if let Some(schema) = self.schema.as_ref() {
                 sqlx::query_scalar::<_, i64>(
                     "SELECT COUNT(*) FROM information_schema.tables
-                        WHERE table_schema=?1 AND table_name='config'",
+                        WHERE table_schema=$1 AND table_name='config'",
                 )
                 .persistent(false)
                 .bind(schema)

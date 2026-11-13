@@ -1,0 +1,105 @@
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ..:/workspace:cached
+      # Only the agent token, read-only: it unlocks the redacted view and nothing else.
+      - explorer-shared:/run/explorer:ro
+    # The host keeps credentials under the repo, but agents must not see this workspace path.
+    tmpfs:
+      - /workspace/.devcontainer/askar-explorer
+    working_dir: /workspace
+    command: sleep infinity
+    environment:
+      CARGO_TARGET_DIR: /tmp/askar-target
+      POSTGRES_URL: postgres://postgres:postgres@postgres:5432/test-db
+      ASKAR_EXPLORER_AGENT_URL: http://explorer:7071
+      ASKAR_EXPLORER_TOKEN_FILE: /run/explorer/agent.token
+    depends_on:
+      postgres:
+        condition: service_healthy
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  # Opt in with `docker compose --profile explorer up -d explorer`. It reads its settings
+  # from .devcontainer/askar-explorer (or $ASKAR_EXPLORER_HOME) on the host. The dev
+  # container masks this workspace path with tmpfs, so it never sees these files.
+  explorer:
+    profiles: [explorer]
+    build:
+      context: ..
+      dockerfile: .devcontainer/explorer.Dockerfile
+    env_file:
+      - path: ${ASKAR_EXPLORER_HOME:-./askar-explorer}/explorer.env
+        required: true
+    environment:
+      ASKAR_EXPLORER_PASS_KEY_FILE: /config/pass.key
+      # Agents leave proposals here; the dev container never mounts this volume. A person
+      # reviews and applies them with `changes`, which needs ASKAR_EXPLORER_WRITE_URI in
+      # explorer.env.
+      ASKAR_EXPLORER_PROPOSALS: /proposals
+      ASKAR_EXPLORER_REVIEW_COMMAND: docker compose -f .devcontainer/compose.yaml --profile explorer exec explorer askar-explorer
+    volumes:
+      - ${ASKAR_EXPLORER_HOME:-./askar-explorer}:/config
+      - explorer-shared:/shared
+      - explorer-proposals:/proposals
+    # Reachable from the dev container, but not published to the host.
+    expose:
+      - "7071"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  # The web interface for you, with real data. Opt in with
+  # `docker compose --profile explorer-ui up -d --build explorer-ui`, then open
+  # http://localhost:7070 and type the store pass key. It gets no pass key from the host, is
+  # published on the host's loopback only, and sits on a network the dev container is not
+  # attached to, so agents cannot reach it by service name.
+  explorer-ui:
+    profiles: [explorer-ui]
+    build:
+      context: ..
+      dockerfile: .devcontainer/explorer.Dockerfile
+    command: ["ui"]
+    env_file:
+      - path: ${ASKAR_EXPLORER_HOME:-./askar-explorer}/explorer.env
+        required: true
+    environment:
+      ASKAR_EXPLORER_UI_LISTEN: 0.0.0.0:7070
+      ASKAR_EXPLORER_UI_HOSTS: localhost:7070,127.0.0.1:7070
+    ports:
+      - "127.0.0.1:7070:7070"
+    networks: [human]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "127.0.0.1:55432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: test-db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d test-db"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+volumes:
+  explorer-shared:
+  explorer-proposals:
+networks:
+  human:
