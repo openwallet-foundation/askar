@@ -5,6 +5,8 @@ try:
 except ImportError:
     import json
 
+import asyncio
+import functools
 from typing import Optional, Sequence, Union
 
 from . import bindings
@@ -18,6 +20,28 @@ from .bindings import (
 from .error import AskarError, AskarErrorCode
 from .key import Key
 from .types import EntryOperation, KeyAlg
+
+
+def _abort_on_cancel(fn):
+    """Close the session if an operation on it is cancelled.
+
+    When the task awaiting an operation is cancelled (including by a timeout),
+    the operation may still be running in the library, for instance waiting on a
+    database connection which has died without notification. The library holds
+    the session until the operation completes, so instead the session is closed,
+    which interrupts the operation and releases the connection. The session can
+    no longer be used after this, and any uncommitted changes are rolled back.
+    """
+
+    @functools.wraps(fn)
+    async def wrapper(self, *args, **kwargs):
+        try:
+            return await fn(self, *args, **kwargs)
+        except asyncio.CancelledError:
+            self._abort()
+            raise
+
+    return wrapper
 
 
 class Entry:
@@ -264,6 +288,7 @@ class Scan:
         )
         self._handle: ScanHandle = None
         self._buffer: IterEntryList = None
+        self._aborted = False
 
     @property
     def handle(self) -> ScanHandle:
@@ -307,16 +332,29 @@ class Scan:
         return self
 
     async def __anext__(self):
-        """Fetch the next scan result during async iteration."""
-        handle = await self.load()
-        while True:
-            if not self._buffer:
-                raise StopAsyncIteration
-            row = next(self._buffer, None)
-            if row:
-                return row
-            list_handle = await bindings.scan_next(handle)
-            self._buffer = iter(EntryList(list_handle)) if list_handle else None
+        """Fetch the next scan result during async iteration.
+
+        If this is cancelled then the scan is freed, interrupting any fetch in
+        progress, and it can no longer be used.
+        """
+        if self._aborted:
+            raise AskarError(AskarErrorCode.WRAPPER, "Scan was cancelled")
+        try:
+            handle = await self.load()
+            while True:
+                if not self._buffer:
+                    raise StopAsyncIteration
+                row = next(self._buffer, None)
+                if row:
+                    return row
+                list_handle = await bindings.scan_next(handle)
+                self._buffer = iter(EntryList(list_handle)) if list_handle else None
+        except asyncio.CancelledError:
+            self._aborted = True
+            self._buffer = None
+            if self._handle:
+                self._handle.abort()
+            raise
 
     async def fetch_all(self) -> Sequence[Entry]:
         """Fetch all remaining rows."""
@@ -553,6 +591,7 @@ class Session:
         """Accessor for the SessionHandle instance."""
         return self._handle
 
+    @_abort_on_cancel
     async def count(
         self, category: str = None, tag_filter: Union[str, dict] = None
     ) -> int:
@@ -561,6 +600,7 @@ class Session:
             raise AskarError(AskarErrorCode.WRAPPER, "Cannot count from closed session")
         return await bindings.session_count(self._handle, category, tag_filter)
 
+    @_abort_on_cancel
     async def fetch(
         self, category: str, name: str, *, for_update: bool = False
     ) -> Optional[Entry]:
@@ -572,6 +612,7 @@ class Session:
         )
         return next(iter(EntryList(result_handle, 1)), None) if result_handle else None
 
+    @_abort_on_cancel
     async def fetch_all(
         self,
         category: str = None,
@@ -597,6 +638,7 @@ class Session:
             )
         )
 
+    @_abort_on_cancel
     async def insert(
         self,
         category: str,
@@ -615,6 +657,7 @@ class Session:
             self._handle, EntryOperation.INSERT, category, name, value, tags, expiry_ms
         )
 
+    @_abort_on_cancel
     async def replace(
         self,
         category: str,
@@ -633,6 +676,7 @@ class Session:
             self._handle, EntryOperation.REPLACE, category, name, value, tags, expiry_ms
         )
 
+    @_abort_on_cancel
     async def remove(
         self,
         category: str,
@@ -645,6 +689,7 @@ class Session:
             self._handle, EntryOperation.REMOVE, category, name
         )
 
+    @_abort_on_cancel
     async def remove_all(
         self,
         category: str = None,
@@ -657,6 +702,7 @@ class Session:
             )
         return await bindings.session_remove_all(self._handle, category, tag_filter)
 
+    @_abort_on_cancel
     async def insert_key(
         self,
         name: str,
@@ -677,6 +723,7 @@ class Session:
             )
         )
 
+    @_abort_on_cancel
     async def fetch_key(
         self, name: str, *, for_update: bool = False
     ) -> Optional[KeyEntry]:
@@ -690,6 +737,7 @@ class Session:
             next(iter(KeyEntryList(result_handle, 1)), None) if result_handle else None
         )
 
+    @_abort_on_cancel
     async def fetch_all_keys(
         self,
         *,
@@ -709,6 +757,7 @@ class Session:
         )
         return KeyEntryList(result_handle)
 
+    @_abort_on_cancel
     async def update_key(
         self,
         name: str,
@@ -724,6 +773,7 @@ class Session:
             )
         await bindings.session_update_key(self._handle, name, metadata, tags, expiry_ms)
 
+    @_abort_on_cancel
     async def remove_key(self, name: str):
         """Remove a key from the store."""
         if not self._handle:
@@ -751,6 +801,13 @@ class Session:
             )
         await self._handle.close(commit=False)
         self._handle = None
+
+    def _abort(self):
+        """Close the session immediately, interrupting any operation in progress."""
+        handle = self._handle
+        self._handle = None
+        if handle:
+            handle.abort()
 
     async def close(self):
         """Close the session without specifying the commit behaviour."""

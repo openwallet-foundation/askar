@@ -39,6 +39,7 @@ sqlite = ["askar-storage/sqlite"]
 
 [dependencies]
 async-lock = "3.4"
+event-listener = "5.4"
 ciborium = "0.2"
 env_logger = { version = "0.11", optional = true }
 ffi-support = { version = "0.4", optional = true }

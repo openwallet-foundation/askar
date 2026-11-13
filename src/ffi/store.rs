@@ -1,10 +1,22 @@
 use std::{
-    collections::BTreeMap, ffi::CString, os::raw::c_char, ptr, str::FromStr, sync::Arc,
-    sync::LazyLock,
+    collections::BTreeMap,
+    ffi::CString,
+    future::{poll_fn, Future},
+    ops::{Deref, DerefMut},
+    os::raw::c_char,
+    pin::pin,
+    ptr,
+    str::FromStr,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, LazyLock,
+    },
+    task::Poll,
 };
 
 use askar_storage::backend::OrderBy;
 use async_lock::{Mutex as TryMutex, MutexGuardArc as TryMutexGuard, RwLock};
+use event_listener::Event;
 use ffi_support::{rust_string_to_c, ByteBuffer, FfiStr};
 
 use super::{
@@ -65,9 +77,87 @@ impl StoreHandle {
     }
 }
 
+/// Used to interrupt operations on a resource which are waiting on a store backend
+/// that may never respond, such as a database connection which has silently died.
+#[derive(Default)]
+struct CancelToken {
+    cancelled: AtomicBool,
+    interrupted: AtomicBool,
+    event: Event,
+}
+
+impl CancelToken {
+    fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+        self.event.notify(usize::MAX);
+    }
+
+    /// Check whether an operation was abandoned part way through due to cancellation
+    fn interrupted(&self) -> bool {
+        self.interrupted.load(Ordering::SeqCst)
+    }
+
+    async fn cancelled(&self) {
+        loop {
+            if self.cancelled.load(Ordering::SeqCst) {
+                return;
+            }
+            let listener = self.event.listen();
+            if self.cancelled.load(Ordering::SeqCst) {
+                return;
+            }
+            listener.await;
+        }
+    }
+
+    /// Run a future until it completes or the token is cancelled. In the latter case
+    /// the future is dropped, which releases any locks or connections it holds.
+    async fn run<F: Future>(&self, fut: F) -> Result<F::Output, Error> {
+        let mut fut = pin!(fut);
+        let mut cancelled = pin!(self.cancelled());
+        poll_fn(|cx| {
+            if let Poll::Ready(result) = fut.as_mut().poll(cx) {
+                return Poll::Ready(Ok(result));
+            }
+            if cancelled.as_mut().poll(cx).is_ready() {
+                self.interrupted.store(true, Ordering::SeqCst);
+                return Poll::Ready(Err(err_msg!(
+                    Custom,
+                    "Operation cancelled: resource is closing"
+                )));
+            }
+            Poll::Pending
+        })
+        .await
+    }
+}
+
+struct ResourceEntry<V> {
+    store: StoreHandle,
+    cancel: Arc<CancelToken>,
+    // the value is only `None` once it has been taken by `remove`
+    value: Arc<TryMutex<Option<V>>>,
+}
+
+/// An exclusive borrow of a resource
+struct ResourceGuard<V>(TryMutexGuard<Option<V>>);
+
+impl<V> Deref for ResourceGuard<V> {
+    type Target = V;
+
+    fn deref(&self) -> &V {
+        self.0.as_ref().expect("Resource has been removed")
+    }
+}
+
+impl<V> DerefMut for ResourceGuard<V> {
+    fn deref_mut(&mut self) -> &mut V {
+        self.0.as_mut().expect("Resource has been removed")
+    }
+}
+
 struct StoreResourceMap<K, V> {
-    #[allow(clippy::type_complexity)]
-    map: RwLock<BTreeMap<K, (StoreHandle, Arc<TryMutex<V>>)>>,
+    map: RwLock<BTreeMap<K, ResourceEntry<V>>>,
 }
 
 impl<K, V> StoreResourceMap<K, V>
@@ -83,49 +173,72 @@ where
     pub async fn insert(&self, store: StoreHandle, value: V) -> K {
         let handle = K::next();
         let mut map = self.map.write().await;
-        map.insert(handle, (store, Arc::new(TryMutex::new(value))));
+        map.insert(
+            handle,
+            ResourceEntry {
+                store,
+                cancel: Arc::new(CancelToken::default()),
+                value: Arc::new(TryMutex::new(Some(value))),
+            },
+        );
         handle
     }
 
-    pub async fn remove(&self, handle: K) -> Option<Result<V, Error>> {
-        self.map.write().await.remove(&handle).map(|(_s, v)| {
-            Arc::try_unwrap(v)
-                .map(|item| item.into_inner())
-                .map_err(|_| err_msg!(Busy, "Resource handle in use"))
-        })
+    /// Remove a resource, interrupting any operations which are in progress or
+    /// waiting on it. Returns the resource, and whether any operation was interrupted.
+    pub async fn remove(&self, handle: K) -> Option<Result<(V, bool), Error>> {
+        let entry = self.map.write().await.remove(&handle)?;
+        // new operations can no longer find the resource, and existing ones
+        // drop their lock on it once cancelled
+        entry.cancel.cancel();
+        let value = entry.value.lock().await.take();
+        Some(
+            value
+                .map(|value| (value, entry.cancel.interrupted()))
+                .ok_or_else(|| err_msg!("Resource handle already removed")),
+        )
     }
 
-    pub async fn borrow(&self, handle: K) -> Result<TryMutexGuard<V>, Error> {
-        Ok(self
+    pub async fn borrow(&self, handle: K) -> Result<ResourceGuard<V>, Error> {
+        let value = self
             .map
             .read()
             .await
             .get(&handle)
             .ok_or_else(|| err_msg!("Invalid resource handle"))?
-            .1
-            .lock_arc()
-            .await)
+            .value
+            .clone();
+        let guard = value.lock_arc().await;
+        if guard.is_none() {
+            return Err(err_msg!("Invalid resource handle"));
+        }
+        Ok(ResourceGuard(guard))
+    }
+
+    /// Run an operation on a resource, abandoning it if the resource is removed
+    /// while the operation is in progress (including while waiting to borrow it).
+    pub async fn cancellable<F: Future>(&self, handle: K, fut: F) -> Result<F::Output, Error> {
+        let cancel = self
+            .map
+            .read()
+            .await
+            .get(&handle)
+            .ok_or_else(|| err_msg!("Invalid resource handle"))?
+            .cancel
+            .clone();
+        cancel.run(fut).await
     }
 
     pub async fn remove_all(&self, store: StoreHandle) -> Result<(), Error> {
         let mut guard = self.map.write().await;
-        let mut pos = K::from(0usize);
-        let mut found;
-        loop {
-            found = false;
-            for (h, (sh, _)) in guard.range(pos..) {
-                if store == *sh {
-                    pos = *h;
-                    found = true;
-                    break;
-                }
-            }
-            if found {
-                guard.remove(&pos);
+        guard.retain(|_, entry| {
+            if entry.store == store {
+                entry.cancel.cancel();
+                false
             } else {
-                break;
+                true
             }
-        }
+        });
         Ok(())
     }
 
@@ -135,7 +248,7 @@ where
             .read()
             .await
             .iter()
-            .filter(|(_, (s, _))| store.eq(s))
+            .filter(|(_, entry)| store == entry.store)
             .map(|(k, _)| *k)
             .collect())
     }
@@ -684,11 +797,11 @@ pub extern "C" fn askar_scan_next(
             }
         );
         spawn_ok(async move {
-            let result = async {
+            let result = FFI_SCANS.cancellable(handle, async {
                 let mut scan = FFI_SCANS.borrow(handle).await?;
                 let entries = scan.fetch_next().await?;
                 Ok(entries)
-            }.await;
+            }).await.and_then(|res| res);
             cb.resolve(result);
         });
         Ok(ErrorCode::Success)
@@ -769,10 +882,10 @@ pub extern "C" fn askar_session_count(
             }
         );
         spawn_ok(async move {
-            let result = async {
+            let result = FFI_SESSIONS.cancellable(handle, async {
                 let mut session = FFI_SESSIONS.borrow(handle).await?;
                 session.count(category.as_deref(), tag_filter).await
-            }.await;
+            }).await.and_then(|res| res);
             cb.resolve(result);
         });
         Ok(ErrorCode::Success)
@@ -804,10 +917,10 @@ pub extern "C" fn askar_session_fetch(
             }
         );
         spawn_ok(async move {
-            let result = async {
+            let result = FFI_SESSIONS.cancellable(handle, async {
                 let mut session = FFI_SESSIONS.borrow(handle).await?;
                 session.fetch(&category, &name, for_update != 0).await
-            }.await;
+            }).await.and_then(|res| res);
             cb.resolve(result);
         });
         Ok(ErrorCode::Success)
@@ -850,10 +963,10 @@ pub extern "C" fn askar_session_fetch_all(
             }
         );
         spawn_ok(async move {
-            let result = async {
+            let result = FFI_SESSIONS.cancellable(handle, async {
                 let mut session = FFI_SESSIONS.borrow(handle).await?;
                 session.fetch_all(category.as_deref(), tag_filter, limit, order_by, descending, for_update != 0).await
-            }.await;
+            }).await.and_then(|res| res);
             cb.resolve(result);
         });
         Ok(ErrorCode::Success)
@@ -882,10 +995,10 @@ pub extern "C" fn askar_session_remove_all(
             }
         );
         spawn_ok(async move {
-            let result = async {
+            let result = FFI_SESSIONS.cancellable(handle, async {
                 let mut session = FFI_SESSIONS.borrow(handle).await?;
                 session.remove_all(category.as_deref(), tag_filter).await
-            }.await;
+            }).await.and_then(|res| res);
             cb.resolve(result);
         });
         Ok(ErrorCode::Success)
@@ -937,10 +1050,10 @@ pub extern "C" fn askar_session_update(
             }
         );
         spawn_ok(async move {
-            let result = async {
+            let result = FFI_SESSIONS.cancellable(handle, async {
                 let mut session = FFI_SESSIONS.borrow(handle).await?;
                 session.update(operation, &category, &name, Some(value.as_slice()), tags.as_deref(), expiry_ms).await
-            }.await;
+            }).await.and_then(|res| res);
             cb.resolve(result);
         });
         Ok(ErrorCode::Success)
@@ -988,7 +1101,7 @@ pub extern "C" fn askar_session_insert_key(
         );
 
         spawn_ok(async move {
-            let result = async {
+            let result = FFI_SESSIONS.cancellable(handle, async {
                 let mut session = FFI_SESSIONS.borrow(handle).await?;
                 session.insert_key(
                     name.as_str(),
@@ -998,7 +1111,7 @@ pub extern "C" fn askar_session_insert_key(
                     tags.as_deref(),
                     expiry_ms,
                 ).await
-            }.await;
+            }).await.and_then(|res| res);
             cb.resolve(result);
         });
         Ok(ErrorCode::Success)
@@ -1032,13 +1145,13 @@ pub extern "C" fn askar_session_fetch_key(
         );
 
         spawn_ok(async move {
-            let result = async {
+            let result = FFI_SESSIONS.cancellable(handle, async {
                 let mut session = FFI_SESSIONS.borrow(handle).await?;
                 session.fetch_key(
                     name.as_str(),
                     for_update != 0
                 ).await
-            }.await;
+            }).await.and_then(|res| res);
             cb.resolve(result);
         });
         Ok(ErrorCode::Success)
@@ -1075,7 +1188,7 @@ pub extern "C" fn askar_session_fetch_all_keys(
         );
 
         spawn_ok(async move {
-            let result = async {
+            let result = FFI_SESSIONS.cancellable(handle, async {
                 let mut session = FFI_SESSIONS.borrow(handle).await?;
                 session.fetch_all_keys(
                     alg.as_deref(),
@@ -1084,7 +1197,7 @@ pub extern "C" fn askar_session_fetch_all_keys(
                     limit,
                     for_update != 0
                 ).await
-            }.await;
+            }).await.and_then(|res| res);
             cb.resolve(result);
         });
         Ok(ErrorCode::Success)
@@ -1130,7 +1243,7 @@ pub extern "C" fn askar_session_update_key(
         );
 
         spawn_ok(async move {
-            let result = async {
+            let result = FFI_SESSIONS.cancellable(handle, async {
                 let mut session = FFI_SESSIONS.borrow(handle).await?;
                 session.update_key(
                     &name,
@@ -1139,7 +1252,7 @@ pub extern "C" fn askar_session_update_key(
                     expiry_ms,
 
                 ).await
-            }.await;
+            }).await.and_then(|res| res);
             cb.resolve(result);
         });
         Ok(ErrorCode::Success)
@@ -1167,12 +1280,12 @@ pub extern "C" fn askar_session_remove_key(
         );
 
         spawn_ok(async move {
-            let result = async {
+            let result = FFI_SESSIONS.cancellable(handle, async {
                 let mut session = FFI_SESSIONS.borrow(handle).await?;
                 session.remove_key(
                     &name,
                 ).await
-            }.await;
+            }).await.and_then(|res| res);
             cb.resolve(result);
         });
         Ok(ErrorCode::Success)
@@ -1202,11 +1315,19 @@ pub extern "C" fn askar_session_close(
             let result = async {
                 // the Session may have been removed due to the Store being closed
                 if let Some(session) = FFI_SESSIONS.remove(handle).await {
-                    let session = session?;
+                    let (session, interrupted) = session?;
                     if commit == 0 {
                         // not necessary - rollback is automatic for txn,
                         // and for regular session there is no action to perform
                         // > session.rollback().await?;
+                    } else if interrupted {
+                        // an operation was abandoned part way through, so the
+                        // session is discarded (rolling back) instead of committed
+                        drop(session);
+                        return Err(err_msg!(
+                            Custom,
+                            "Session closed while an operation was in progress, not committed"
+                        ));
                     } else {
                         session.commit().await?;
                     }
@@ -1274,5 +1395,69 @@ pub extern "C" fn askar_store_list_scans(
             cb.resolve(FFI_SCANS.keys(handle).await);
         });
         Ok(ErrorCode::Success)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{future::pending, sync::mpsc, time::Duration};
+
+    use super::*;
+    use crate::future::{block_on, sleep, spawn_ok, timeout};
+
+    #[test]
+    fn remove_interrupts_operations_in_progress() {
+        block_on(async {
+            let map = Arc::new(StoreResourceMap::<SessionHandle, String>::new());
+            let handle = map.insert(StoreHandle(1), "value".to_string()).await;
+            let (tx, rx) = mpsc::channel();
+
+            // one operation which never completes, like a query on a dead connection,
+            // and a second which is queued behind it
+            for n in 0..2 {
+                let map = map.clone();
+                let tx = tx.clone();
+                spawn_ok(async move {
+                    let res = map
+                        .cancellable(handle, async {
+                            let _session = map.borrow(handle).await?;
+                            pending::<()>().await;
+                            Ok::<_, Error>(())
+                        })
+                        .await
+                        .and_then(|res| res);
+                    tx.send((n, res.is_err())).unwrap();
+                });
+            }
+            sleep(Duration::from_millis(100)).await;
+            assert!(rx.try_recv().is_err(), "operations should be pending");
+
+            let (value, interrupted) = timeout(Duration::from_secs(5), map.remove(handle))
+                .await
+                .expect("remove blocked on operation in progress")
+                .expect("missing resource")
+                .unwrap();
+            assert_eq!(value, "value");
+            assert!(interrupted);
+
+            for _ in 0..2 {
+                let (_, failed) = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                assert!(failed, "operation should have been cancelled");
+            }
+            assert!(map.borrow(handle).await.is_err());
+        });
+    }
+
+    #[test]
+    fn remove_when_idle_is_not_interrupted() {
+        block_on(async {
+            let map = StoreResourceMap::<SessionHandle, String>::new();
+            let handle = map.insert(StoreHandle(1), "value".to_string()).await;
+            let out = map.cancellable(handle, async { 5 }).await.unwrap();
+            assert_eq!(out, 5);
+            let (value, interrupted) = map.remove(handle).await.unwrap().unwrap();
+            assert_eq!(value, "value");
+            assert!(!interrupted);
+        });
     }
 }

@@ -99,6 +99,15 @@ class SessionHandle(ArcHandle):
             )
             self.value = 0
 
+    def abort(self):
+        """Close the session without waiting, interrupting any operation in progress.
+
+        Any uncommitted changes are rolled back.
+        """
+        if self.value:
+            value, self.value = self.value, 0
+            self._cleanup(c_size_t(value))
+
     @classmethod
     def _cleanup(cls, value: c_size_t):
         """Close the session when there are no more references to this object."""
@@ -117,6 +126,12 @@ class ScanHandle(ArcHandle):
     """Handle for an active Store scan instance."""
 
     _dtor_ = "askar_scan_free"
+
+    def abort(self):
+        """Free the scan without waiting, interrupting any operation in progress."""
+        if self.value:
+            value, self.value = self.value, 0
+            self._cleanup(c_size_t(value))
 
 
 class HandleList(Structure):

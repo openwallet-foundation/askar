@@ -166,6 +166,7 @@ dependencies = [
  "ciborium",
  "criterion",
  "env_logger",
+ "event-listener",
  "ffi-support",
  "jemallocator",
  "log",
