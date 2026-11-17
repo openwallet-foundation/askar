@@ -626,7 +626,10 @@ impl BackendSession for DbSession<Postgres> {
     }
 }
 
-impl ExtDatabase for Postgres {}
+impl ExtDatabase for Postgres {
+    // bounded release of connections, see `ExtDatabase::BOUNDED_RELEASE`
+    const BOUNDED_RELEASE: bool = true;
+}
 
 impl QueryPrepare for PostgresBackend {
     type DB = Postgres;
