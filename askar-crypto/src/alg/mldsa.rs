@@ -462,6 +462,83 @@ mod tests {
         );
     }
 
+    fn keypair_rejects_invalid<P: MlDsaVariant>() {
+        let keypair = MlDsaKeyPair::<P>::from_secret_bytes(&[0x42; SEED_LENGTH]).unwrap();
+        let mut sig = SecretBytes::with_capacity(5000);
+        keypair
+            .write_signature(b"ML-DSA negative message", None, &mut sig)
+            .unwrap();
+        assert!(keypair
+            .verify_signature(b"ML-DSA negative message", sig.as_ref(), None)
+            .unwrap());
+
+        let mut forged = sig.as_ref().to_vec();
+        forged[0] ^= 0x01;
+        assert!(!matches!(
+            keypair.verify_signature(b"ML-DSA negative message", &forged, None),
+            Ok(true)
+        ));
+
+        assert!(keypair
+            .verify_signature(
+                b"ML-DSA negative message",
+                &sig.as_ref()[..sig.len() - 1],
+                None
+            )
+            .is_err());
+
+        let other = MlDsaKeyPair::<P>::from_secret_bytes(&[0x11; SEED_LENGTH]).unwrap();
+        assert!(!other
+            .verify_signature(b"ML-DSA negative message", sig.as_ref(), None)
+            .unwrap());
+        let other_public =
+            MlDsaKeyPair::<P>::from_public_bytes(other.to_public_bytes().unwrap().as_ref())
+                .unwrap();
+        assert!(!other_public
+            .verify_signature(b"ML-DSA negative message", sig.as_ref(), None)
+            .unwrap());
+
+        let public = keypair.to_public_bytes().unwrap();
+        assert!(
+            MlDsaKeyPair::<P>::from_public_bytes(&public.as_ref()[..public.len() - 1]).is_err()
+        );
+        let mut oversize = public.as_ref().to_vec();
+        oversize.push(0);
+        assert!(MlDsaKeyPair::<P>::from_public_bytes(&oversize).is_err());
+
+        let jwk_public = keypair.to_jwk_public(None).unwrap();
+        let public_parts = JwkParts::try_from_str(&jwk_public).unwrap();
+        let public_b64 = public_parts.pub_key.as_opt_str().unwrap();
+        let jwk_other_secret = other.to_jwk_secret(None).unwrap();
+        let other_parts = JwkParts::try_from_str(jwk_other_secret.as_opt_str().unwrap()).unwrap();
+        let seed_b64 = other_parts.priv_key.as_opt_str().unwrap();
+
+        let mismatched = format!(
+            r#"{{"alg":"{}","kty":"AKP","priv":"{}","pub":"{}"}}"#,
+            P::JWK_ALG,
+            seed_b64,
+            public_b64
+        );
+        let mismatched_parts = JwkParts::try_from_str(&mismatched).unwrap();
+        assert!(MlDsaKeyPair::<P>::from_jwk_parts(mismatched_parts).is_err());
+
+        let wrong_kty = format!(
+            r#"{{"alg":"{}","kty":"OKP","pub":"{}"}}"#,
+            P::JWK_ALG,
+            public_b64
+        );
+        let wrong_kty_parts = JwkParts::try_from_str(&wrong_kty).unwrap();
+        assert!(MlDsaKeyPair::<P>::from_jwk_parts(wrong_kty_parts).is_err());
+
+        let wrong_alg = format!(r#"{{"alg":"ES256","kty":"AKP","pub":"{}"}}"#, public_b64);
+        let wrong_alg_parts = JwkParts::try_from_str(&wrong_alg).unwrap();
+        assert!(MlDsaKeyPair::<P>::from_jwk_parts(wrong_alg_parts).is_err());
+
+        let missing_public = format!(r#"{{"alg":"{}","kty":"AKP"}}"#, P::JWK_ALG);
+        let missing_public_parts = JwkParts::try_from_str(&missing_public).unwrap();
+        assert!(MlDsaKeyPair::<P>::from_jwk_parts(missing_public_parts).is_err());
+    }
+
     #[test]
     fn mldsa44_round_trip() {
         keypair_round_trip::<MlDsa44>();
@@ -475,6 +552,21 @@ mod tests {
     #[test]
     fn mldsa87_round_trip() {
         keypair_round_trip::<MlDsa87>();
+    }
+
+    #[test]
+    fn mldsa44_rejects_invalid() {
+        keypair_rejects_invalid::<MlDsa44>();
+    }
+
+    #[test]
+    fn mldsa65_rejects_invalid() {
+        keypair_rejects_invalid::<MlDsa65>();
+    }
+
+    #[test]
+    fn mldsa87_rejects_invalid() {
+        keypair_rejects_invalid::<MlDsa87>();
     }
 
     #[test]
