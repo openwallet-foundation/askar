@@ -73,6 +73,10 @@ Pull requests are welcome! Please read our [contributions guide](https://github.
 
 We also welcome issues submitted about problems you encounter in using `askar`.
 
+## Askar Explorer
+
+[Askar Explorer](tools/askar-explorer/README.md) is a developer tool for inspecting and troubleshooting Askar SQLite and PostgreSQL stores through a CLI and web UI, with advanced SQL, redacted agent/MCP access, and export/recovery workflows.
+
 ## License
 
 [Apache License Version 2.0](LICENSE)

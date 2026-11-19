@@ -79,6 +79,11 @@ macro_rules! backend_tests {
         }
 
         #[test]
+        fn scan_or_many_terms() {
+            $run(super::utils::db_scan_or_many_terms)
+        }
+
+        #[test]
         fn remove_all() {
             $run(super::utils::db_remove_all)
         }
