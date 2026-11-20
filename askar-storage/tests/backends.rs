@@ -59,6 +59,11 @@ macro_rules! backend_tests {
         }
 
         #[test]
+        fn replace_tags() {
+            $run(super::utils::db_replace_tags)
+        }
+
+        #[test]
         fn replace_missing() {
             $run(super::utils::db_replace_missing)
         }
