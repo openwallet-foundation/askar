@@ -82,10 +82,27 @@ const DELETE_ALL_QUERY: &str = "DELETE FROM items i
     WHERE profile_id = $1
     AND (kind = $2 OR $2 IS NULL)
     AND (category = $3 OR $3 IS NULL)";
-const TAG_INSERT_QUERY: &str = "INSERT INTO items_tags
-    (item_id, name, value, plaintext) VALUES ($1, $2, $3, $4)";
-const TAG_DELETE_QUERY: &str = "DELETE FROM items_tags
-    WHERE item_id=$1";
+const TAG_INSERT_QUERY: &str = "INSERT INTO items_tags (item_id, name, value, plaintext)
+    SELECT $1, * FROM UNNEST($2::bytea[], $3::bytea[], $4::smallint[])";
+// Removes the tags that are no longer present and inserts the missing ones, leaving
+// unchanged tags in place. Rows are numbered so that repeated tags are kept as given.
+const TAG_REPLACE_QUERY: &str = "WITH new AS (
+        SELECT name, value, plaintext,
+            ROW_NUMBER() OVER (PARTITION BY name, value, plaintext) AS n
+        FROM UNNEST($2::bytea[], $3::bytea[], $4::smallint[]) AS t(name, value, plaintext)
+    ), old AS (
+        SELECT id, name, value, plaintext,
+            ROW_NUMBER() OVER (PARTITION BY name, value, plaintext ORDER BY id) AS n
+        FROM items_tags WHERE item_id = $1
+    ), removed AS (
+        DELETE FROM items_tags WHERE id IN (
+            SELECT old.id FROM old LEFT JOIN new USING (name, value, plaintext, n)
+            WHERE new.n IS NULL)
+    )
+    INSERT INTO items_tags (item_id, name, value, plaintext)
+    SELECT $1, new.name, new.value, new.plaintext
+    FROM new LEFT JOIN old USING (name, value, plaintext, n)
+    WHERE old.n IS NULL";
 
 /// A PostgreSQL database store
 pub struct PostgresBackend {
@@ -601,12 +618,16 @@ impl BackendSession for DbSession<Postgres> {
 
     fn ping(&mut self) -> BoxFuture<'_, Result<(), Error>> {
         Box::pin(async move {
+            let opened = self.profile_and_key().is_none();
             let mut sess = acquire_session(&mut *self).await?;
             if sess.in_transaction() {
-                // the profile row is locked, perform a typical ping
-                sqlx::Connection::ping(sess.connection_mut())
-                    .await
-                    .map_err(err_map!(Backend, "Error pinging session"))?;
+                // the profile row is locked, perform a typical ping, unless this
+                // call opened the transaction, which has just queried that row
+                if !opened {
+                    sqlx::Connection::ping(sess.connection_mut())
+                        .await
+                        .map_err(err_map!(Backend, "Error pinging session"))?;
+                }
             } else {
                 let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM profiles WHERE id=$1")
                     .bind(sess.profile_id)
@@ -740,25 +761,30 @@ async fn perform_insert(
             .fetch_one(active.connection_mut())
             .await
             .map_err(|_| err_msg!(NotFound, "Error updating existing entry"))?;
-        sqlx::query(TAG_DELETE_QUERY)
-            .bind(row_id)
-            .execute(active.connection_mut())
-            .await
-            .map_err(err_map!(Backend, "Error removing existing entry tags"))?;
         row_id
     };
-    if let Some(tags) = enc_tags {
-        for tag in tags {
-            sqlx::query(TAG_INSERT_QUERY)
-                .bind(row_id)
-                .bind(&tag.name)
-                .bind(&tag.value)
-                .bind(tag.plaintext as i16)
-                .execute(active.connection_mut())
-                .await
-                .map_err(err_map!(Backend, "Error inserting entry tags"))?;
-        }
+    let tags = enc_tags.unwrap_or_default();
+    if new_row && tags.is_empty() {
+        return Ok(());
     }
+    let (mut names, mut values, mut plaintext) = (vec![], vec![], vec![]);
+    for tag in tags {
+        names.push(tag.name);
+        values.push(tag.value);
+        plaintext.push(tag.plaintext as i16);
+    }
+    sqlx::query(if new_row {
+        TAG_INSERT_QUERY
+    } else {
+        TAG_REPLACE_QUERY
+    })
+    .bind(row_id)
+    .bind(names)
+    .bind(values)
+    .bind(plaintext)
+    .execute(active.connection_mut())
+    .await
+    .map_err(err_map!(Backend, "Error updating entry tags"))?;
     Ok(())
 }
 

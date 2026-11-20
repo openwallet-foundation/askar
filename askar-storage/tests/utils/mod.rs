@@ -223,6 +223,91 @@ pub async fn db_replace_fetch(db: AnyBackend) {
     assert_eq!(row, replace_row);
 }
 
+pub async fn db_replace_tags(db: AnyBackend) {
+    let enc = |name: &str, value: &str| EntryTag::Encrypted(name.to_string(), value.to_string());
+    let plain = |name: &str, value: &str| EntryTag::Plaintext(name.to_string(), value.to_string());
+
+    let mut conn = db.session(None, false).expect(ERR_SESSION);
+    conn.update(
+        EntryKind::Item,
+        EntryOperation::Insert,
+        "category",
+        "name",
+        Some(b"value"),
+        Some(&[enc("t1", "v1"), enc("t2", "v2"), plain("t3", "v3")]),
+        None,
+    )
+    .await
+    .expect(ERR_INSERT);
+
+    let replacements = [
+        // unchanged
+        vec![enc("t1", "v1"), enc("t2", "v2"), plain("t3", "v3")],
+        // changed value, added and removed tag
+        vec![enc("t1", "v1"), enc("t2", "changed"), enc("t4", "v4")],
+        // same name and value, encrypted and plaintext
+        vec![enc("t1", "v1"), plain("t1", "v1")],
+        // repeated name, and a repeated tag
+        vec![enc("t1", "v1"), enc("t1", "v1"), enc("t1", "other")],
+        vec![enc("t1", "v1"), enc("t1", "other")],
+        vec![],
+        vec![plain("t3", "v3")],
+    ];
+    for tags in replacements {
+        conn.update(
+            EntryKind::Item,
+            EntryOperation::Replace,
+            "category",
+            "name",
+            Some(b"value"),
+            Some(tags.as_slice()),
+            None,
+        )
+        .await
+        .expect(ERR_REPLACE);
+
+        let row = conn
+            .fetch(EntryKind::Item, "category", "name", false)
+            .await
+            .expect(ERR_FETCH)
+            .expect(ERR_REQ_ROW);
+        assert_eq!(
+            row,
+            Entry::new(EntryKind::Item, "category", "name", "value", tags)
+        );
+    }
+
+    // no tags given removes them
+    conn.update(
+        EntryKind::Item,
+        EntryOperation::Replace,
+        "category",
+        "name",
+        Some(b"value"),
+        Some(&[enc("t1", "v1")]),
+        None,
+    )
+    .await
+    .expect(ERR_REPLACE);
+    conn.update(
+        EntryKind::Item,
+        EntryOperation::Replace,
+        "category",
+        "name",
+        Some(b"value"),
+        None,
+        None,
+    )
+    .await
+    .expect(ERR_REPLACE);
+    let row = conn
+        .fetch(EntryKind::Item, "category", "name", false)
+        .await
+        .expect(ERR_FETCH)
+        .expect(ERR_REQ_ROW);
+    assert!(row.tags.is_empty());
+}
+
 pub async fn db_replace_missing(db: AnyBackend) {
     let test_row = Entry::new(EntryKind::Item, "category", "name", "value", Vec::new());
 
