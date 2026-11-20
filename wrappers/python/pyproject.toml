@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aries_askar"
-version = "0.6.0"
+version = "0.6.0.dev1"
 description = "Python wrapper for the Aries Askar cryptographic library"
 authors = ["OpenWallet Foundation Askar Contributors"]
 readme = "README.md"
