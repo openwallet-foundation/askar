@@ -34,7 +34,12 @@ impl Options<'_> {
         let scheme = scheme_and_remain.next().unwrap_or_default();
 
         let (scheme, host_and_query) = if let Some(remain) = scheme_and_remain.next() {
-            if scheme.is_empty() {
+            let windows_drive_path = scheme.len() == 1
+                && scheme.as_bytes()[0].is_ascii_alphabetic()
+                && (remain.starts_with('/') || remain.starts_with('\\'));
+            if windows_drive_path {
+                ("", uri)
+            } else if scheme.is_empty() {
                 ("", uri)
             } else {
                 (scheme, remain.trim_start_matches("//"))
@@ -194,6 +199,19 @@ mod tests {
                 fragment: Cow::Borrowed("frag")
             }
         );
+    }
+
+    #[test]
+    fn options_windows_drive_paths() {
+        let backslash_path = Options::parse_uri(r"C:\data\store.db").unwrap();
+        assert_eq!(backslash_path.scheme, "");
+        assert_eq!(backslash_path.host, r"C:\data\store.db");
+        assert_eq!(backslash_path.path, "");
+
+        let slash_path = Options::parse_uri("C:/data/store.db").unwrap();
+        assert_eq!(slash_path.scheme, "");
+        assert_eq!(slash_path.host, "C:");
+        assert_eq!(slash_path.path, "/data/store.db");
     }
 
     #[test]

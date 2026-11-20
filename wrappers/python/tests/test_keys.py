@@ -61,6 +61,52 @@ def test_bls_keygen():
     )
 
 
+@pytest.mark.parametrize(
+    "key_alg,jwk_alg,public_size,signature_size",
+    [
+        (KeyAlg.MLDSA44, "ML-DSA-44", 1312, 2420),
+        (KeyAlg.MLDSA65, "ML-DSA-65", 1952, 3309),
+        (KeyAlg.MLDSA87, "ML-DSA-87", 2592, 4627),
+    ],
+)
+def test_mldsa(key_alg: KeyAlg, jwk_alg: str, public_size: int, signature_size: int):
+    key = Key.generate(key_alg)
+    assert key.algorithm == key_alg
+
+    message = b"test message"
+    signature = key.sign_message(message)
+    assert len(signature) == signature_size
+    assert key.verify_signature(message, signature)
+    assert not key.verify_signature(b"different message", signature)
+
+    public = key.get_public_bytes()
+    assert len(public) == public_size
+    public_key = Key.from_public_bytes(key_alg, public)
+    assert public_key.algorithm == key_alg
+    assert public_key.verify_signature(message, signature)
+
+    secret = key.get_secret_bytes()
+    assert len(secret) == 32
+    secret_key = Key.from_secret_bytes(key_alg, secret)
+    assert secret_key.get_public_bytes() == public
+    assert secret_key.verify_signature(message, secret_key.sign_message(message))
+
+    public_jwk = json.loads(key.get_jwk_public())
+    assert public_jwk["alg"] == jwk_alg
+    assert public_jwk["kty"] == "AKP"
+    assert len(public_jwk["pub"]) > 0
+    imported_public_jwk = Key.from_jwk(public_jwk)
+    assert imported_public_jwk.get_public_bytes() == public
+
+    secret_jwk = json.loads(key.get_jwk_secret())
+    assert secret_jwk["alg"] == jwk_alg
+    assert secret_jwk["kty"] == "AKP"
+    assert len(secret_jwk["priv"]) > 0
+    imported_secret_jwk = Key.from_jwk(secret_jwk)
+    assert imported_secret_jwk.get_secret_bytes() == secret
+    assert imported_secret_jwk.get_public_bytes() == public
+
+
 def test_ed25519():
     key = Key.generate(KeyAlg.ED25519)
     assert key.algorithm == KeyAlg.ED25519

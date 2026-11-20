@@ -1,5 +1,5 @@
 [workspace]
-members = ["askar-crypto", "askar-storage"]
+members = ["askar-crypto", "askar-storage", "tools/askar-explorer"]
 resolver = "2"
 
 [package]
@@ -28,7 +28,7 @@ path = "src/lib.rs"
 
 [features]
 all_backends = ["postgres", "sqlite"]
-default = ["all_backends", "ffi", "logger", "migration"]
+default = ["all_backends", "ffi", "logger", "migration", "mldsa"]
 ffi = ["dep:ffi-support", "logger"]
 jemalloc = ["dep:jemallocator"]
 logger = ["dep:env_logger", "dep:log", "askar-storage/log"]
@@ -36,6 +36,7 @@ migration = ["askar-storage/migration"]
 pg_test = ["askar-storage/pg_test"]
 postgres = ["askar-storage/postgres"]
 sqlite = ["askar-storage/sqlite"]
+mldsa = ["askar-crypto/mldsa"]
 
 [dependencies]
 async-lock = "3.4"

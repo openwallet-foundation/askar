@@ -275,6 +275,22 @@ async def test_key_store_ed25519(store: Store):
         assert await session.fetch_key(key_name) is None
 
 
+@mark.parametrize("key_alg", [KeyAlg.MLDSA44, KeyAlg.MLDSA65, KeyAlg.MLDSA87])
+async def test_key_store_mldsa(store: Store, key_alg: KeyAlg):
+    async with store as session:
+        key = Key.generate(key_alg)
+        key_name = "test-mldsa-key"
+        await session.insert_key(key_name, key)
+
+        fetched = await session.fetch_key(key_name)
+        assert fetched is not None
+        assert fetched.key.algorithm == key_alg
+
+        message = b"stored ML-DSA key"
+        signature = fetched.key.sign_message(message)
+        assert fetched.key.verify_signature(message, signature)
+
+
 @mark.parametrize(
     "key_alg",
     [KeyAlg.A128CBC_HS256, KeyAlg.XC20P],

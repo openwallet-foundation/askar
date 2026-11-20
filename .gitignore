@@ -4,6 +4,9 @@ target
 *.db-shm
 *.db-wal
 .DS_Store
+.env
+.askar-explorer/*.key
+.devcontainer/askar-explorer/
 *.tgz
 *.so
 out
