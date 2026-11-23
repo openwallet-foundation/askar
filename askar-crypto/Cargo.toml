@@ -1,6 +1,6 @@
 [package]
 name = "askar-crypto"
-version = "0.4.0"
+version = "0.5.0-dev.1"
 authors = ["Hyperledger Aries Contributors <aries@lists.hyperledger.org>"]
 edition = "2021"
 description = "Hyperledger Aries Askar cryptography"
